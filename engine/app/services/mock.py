@@ -2,7 +2,8 @@
 
 prepare() validates parameters and builds a confirmation card (nothing is executed).
 execute() runs a prepared card after the customer's tap and returns a realistic confirmation object.
-Everything is deterministic per customer, and nothing leaves the process.
+Everything is deterministic per customer, nothing leaves the process, and all customer-facing text comes in the
+card's language (en / nl / fr).
 """
 import datetime as dt
 import hashlib
@@ -11,7 +12,9 @@ import re
 
 import numpy as np
 
-from .registry import SERVICES, TEMPLATE_LABELS, TODAY, Action, needs_confirmation
+from .. import i18n
+from ..i18n.services import ACTIONS, BUTTONS, RESULTS, TEMPLATES
+from .registry import SERVICES, TODAY, Action, needs_confirmation
 
 BIG_CITIES = {"Antwerpen", "Gent", "Brussels", "Ixelles", "Schaerbeek", "Etterbeek", "Uccle", "Anderlecht", "Liège", "Leuven"}
 MOBIT_CITIES = {"Gent", "Brussels", "Ixelles", "Schaerbeek", "Etterbeek", "Uccle", "Anderlecht", "Liège", "Leuven", "Mechelen"}
@@ -48,8 +51,21 @@ def _month_after(months: float) -> str:
     return f"{idx // 12}-{idx % 12 + 1:02d}-01"
 
 
-def _eur(v: float) -> str:
-    return f"€{v:,.2f}" if v < 100 else f"€{v:,.0f}"
+def _eur(v: float, lang: str = "en") -> str:
+    return i18n.eur(v, lang, decimals=2 if abs(v) < 100 and v != int(v) else 0)
+
+
+def _date(iso: str, lang: str) -> str:
+    """2026-10-02 -> 2 Oct 2026 / 2 okt 2026 / 2 oct. 2026."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(iso)):
+        return str(iso)
+    y, m, d = iso.split("-")
+    return f"{int(d)} {i18n.month_label(f'{y}-{m}', lang)}"
+
+
+def _r(lang: str, key: str, **kw):
+    s = RESULTS[lang].get(key, RESULTS["en"][key])
+    return s.format(**kw) if kw and isinstance(s, str) else s
 
 
 def invoices_for(uid: int, n, total) -> list[dict]:
@@ -89,6 +105,7 @@ def context(uid: int, profile: dict, values: dict, session: dict) -> dict:
         "invoices": invoices,
         "largest_overdue": invoices[0]["number"] if invoices else None,
         "largest_overdue_amount": invoices[0]["amount"] if invoices else None,
+        "suggested_buffer": 50,
     }
 
 
@@ -162,10 +179,12 @@ def _train_fare(a: str, b: str) -> float:
     return round(2.60 + (h % 30) * 0.45, 2)
 
 
-def price(service: str, action: str, v: dict, ctx: dict) -> tuple[float | None, str]:
+def price(service: str, action: str, v: dict, ctx: dict, lang: str = "en") -> tuple[float | None, str]:
+    e = lambda x: _eur(x, lang)  # noqa: E731
     if service == "4411" and action == "start_parking":
         rate = 2.40 if v["city"] in BIG_CITIES else 1.80
-        return round(rate * v["duration_min"] / 60, 2), f"≈ {_eur(rate * v['duration_min'] / 60)} ({_eur(rate)}/h)"
+        total = round(rate * v["duration_min"] / 60, 2)
+        return total, _r(lang, "price.per_hour", total=e(total), rate=e(rate))
     if service == "sncb":
         fare = _train_fare(v["origin"], v["destination"])
         if action == "buy_ticket":
@@ -174,39 +193,42 @@ def price(service: str, action: str, v: dict, ctx: dict) -> tuple[float | None, 
             p = fare * 10 * 0.85
         else:
             p = fare * 13 * {1: 1, 3: 2.8, 12: 10}[int(v["months"])]
-        return round(p, 2), _eur(round(p, 2))
+        return round(p, 2), e(round(p, 2))
     fixed = {("delijn", "single"): 2.50, ("delijn", "day pass"): 7.50, ("stib", "single"): 2.60, ("stib", "24h"): 8.40}
     if service in ("delijn", "stib"):
         p = fixed[(service, v["ticket_type"])]
-        return p, _eur(p)
+        return p, e(p)
     if service == "shared_bike":
         p = {"Mobit": 10.00, "Blue-bike": 3.65, "Velo Antwerpen": 5.00}[v["provider"]]
-        return p, _eur(p)
+        return p, e(p)
     if service == "cambio" and action == "book_car":
         p = round(v["hours"] * 2.80 + v["hours"] * 12 * 0.29, 2)
-        return p, f"≈ {_eur(p)} ({_eur(2.80)}/h + €0.29/km)"
+        return p, _r(lang, "price.cambio", total=e(p), rate=e(2.80), km=e(0.29))
     if service == "driving_licence":
         p = 58.0 * v["hours"]
-        return p, _eur(p)
+        return p, e(p)
     if service == "brussels_airport":
         p = 12.0 if action == "book_fast_lane" else 39.0
-        return p, _eur(p)
+        return p, e(p)
     if service == "service_vouchers":
         p = 10.0 * v["count"]
-        return p, _eur(p)
+        return p, e(p)
     if service == "registered_email":
-        return 4.95, _eur(4.95)
+        return 4.95, e(4.95)
     if service == "gosolid":
-        return None, "12% of what is recovered"
+        return None, _r(lang, "price.gosolid")
     if service in ("q8", "qpark"):
-        return None, "free to link, pay per use"
+        return None, _r(lang, "price.link")
+    if service == "buffer":
+        return None, _r(lang, "price.free")
     return None, ""
 
 
 # ------------------------------------------------------------------------------------------------
 # Cards and execution
 # ------------------------------------------------------------------------------------------------
-def prepare(service_id: str, action_id: str, params: dict, ctx: dict, seq: int) -> dict:
+def prepare(service_id: str, action_id: str, params: dict, ctx: dict, seq: int, lang: str = "en") -> dict:
+    lang = i18n.norm(lang)
     svc = SERVICES.get(service_id)
     if svc is None:
         raise ActionError(f"Unknown service '{service_id}'. Services: {', '.join(SERVICES)}.")
@@ -216,20 +238,33 @@ def prepare(service_id: str, action_id: str, params: dict, ctx: dict, seq: int) 
     if service_id == "4411" and action_id == "stop_parking" and not (params or {}).get("session_id") and not ctx.get("last_parking"):
         raise ActionError("There is no running parking session to stop.")
     v = resolve(a, params, ctx)
-    fmt = {**v, "duration": f"{v.get('duration_min', 0)} min", "template_label": TEMPLATE_LABELS.get(v.get("template"), v.get("template")),
+    city = lambda c: i18n.journeys.city(c, lang)  # noqa: E731
+    fmt = {**v, "duration": _r(lang, "duration", n=v.get("duration_min", 0)),
+           "template_label": TEMPLATES[lang].get(v.get("template"), v.get("template")),
            "note_suffix": f" ('{v['note']}')" if v.get("note") else ""}
-    for k in ("amount",):
-        if isinstance(v.get(k), (int, float)):
-            fmt[k] = _eur(v[k])
-    amount, price_text = price(service_id, action_id, v, ctx)
-    label = a.button or ("Send" if a.sends else "Confirm")
+    for k in ("city", "origin", "destination"):
+        if v.get(k):
+            fmt[k] = city(v[k])
+    for k in ("date", "move_out"):
+        if v.get(k):
+            fmt[k] = _date(v[k], lang)
+    if v.get("travel_class"):
+        fmt["travel_class"] = _r(lang, f"class.{v['travel_class']}")
+    if isinstance(v.get("amount"), (int, float)):
+        fmt["amount"] = _eur(v["amount"], lang)
+    if isinstance(v.get("km_per_year"), int):
+        fmt["km_per_year"] = i18n.number(v["km_per_year"], lang)
+    name, confirm, button = ACTIONS[lang].get(f"{service_id}.{action_id}", (a.name, a.confirm, a.button or None))
+    amount, price_text = price(service_id, action_id, v, ctx, lang)
+    label = (button or BUTTONS[lang]["send" if a.sends else "confirm"]).format(**fmt)
     if a.costs_money and amount:
-        label = f"{a.button or 'Confirm & pay'} · {_eur(amount)}"
+        label = f"{button or BUTTONS[lang]['pay']} · {_eur(amount, lang)}"
     return {
-        "id": f"A{seq}", "service": svc.id, "service_name": svc.name, "action": a.id, "action_name": a.name,
-        "params": v, "summary": a.confirm.format(**fmt), "price": amount, "price_text": price_text,
+        "id": f"A{seq}", "service": svc.id, "service_name": svc.name, "action": a.id, "action_name": name,
+        "params": v, "summary": confirm.format(**fmt), "price": amount, "price_text": price_text,
         "costs_money": a.costs_money, "sends": a.sends, "needs_confirmation": needs_confirmation(a),
         "button": label, "color": svc.color, "text": svc.text, "status": "prepared", "simulated": True, "result": {},
+        "lang": lang,
     }
 
 
@@ -254,41 +289,57 @@ def qr_svg(seed: str, n: int = 25, px: int = 4) -> str:
             f'<g fill="#111">{"".join(rects)}</g></svg>')
 
 
+def for_display(card: dict) -> dict:
+    """The card as the app shows it: tickets get their QR placeholder (not stored in the session)."""
+    if card.get("result", {}).get("kind") == "ticket":
+        return {**card, "result": {**card["result"], "qr_svg": qr_svg(card["result"]["reference"])}}
+    return card
+
+
 def execute(card: dict, ctx: dict) -> dict:
     s, a, v = card["service"], card["action"], card["params"]
+    lang = i18n.norm(card.get("lang"))
+    e = lambda x: _eur(x, lang)  # noqa: E731
+    city = lambda c: i18n.journeys.city(c, lang)  # noqa: E731
     ref = _ref({"4411": "P", "sncb": "SNCB", "delijn": "DL", "stib": "STIB", "cambio": "CMB", "registered_email": "RE",
-                "gosolid": "GS", "brussels_airport": "BRU", "driving_licence": "DRV"}.get(s, s[:3].upper()), ctx["uid"], card["id"])
+                "gosolid": "GS", "brussels_airport": "BRU", "driving_licence": "DRV", "buffer": "BUF"}.get(s, s[:3].upper()),
+               ctx["uid"], card["id"])
     base = {"reference": ref, "service_name": card["service_name"], "created_at": _now(), "simulated": True}
+    today = _date(TODAY, lang)
     if s == "4411" and a == "start_parking":
         start = dt.datetime.now().replace(second=0, microsecond=0)
         end = start + dt.timedelta(minutes=v["duration_min"])
-        zone = "Zone rouge / rood · paid parking" if v["city"] in BIG_CITIES else "Blue zone with paid extension"
-        return {**base, "kind": "parking_session", "session_id": ref, "city": v["city"], "zone": zone, "plate": v["plate"],
-                "starts": f"{TODAY} {start:%H:%M}", "ends": f"{TODAY} {end:%H:%M}", "estimate": card["price_text"],
-                "title": f"Parking in {v['city']} until {end:%H:%M}"}
+        zone = _r(lang, "zone.paid" if v["city"] in BIG_CITIES else "zone.blue")
+        return {**base, "kind": "parking_session", "session_id": ref, "city": city(v["city"]), "zone": zone,
+                "plate": v["plate"], "starts": f"{today} {start:%H:%M}", "ends": f"{today} {end:%H:%M}",
+                "estimate": card["price_text"], "title": _r(lang, "parking.title", city=city(v["city"]), end=f"{end:%H:%M}")}
     if s == "4411" and a == "stop_parking":
         return {**base, "kind": "parking_stopped", "session_id": v["session_id"], "stopped_at": _now(),
-                "title": f"Parking session {v['session_id']} stopped"}
+                "title": _r(lang, "parking.stopped", id=v["session_id"])}
     if s in ("sncb", "delijn", "stib"):
         if s == "sncb":
+            o, d = city(v["origin"]), city(v["destination"])
             if a == "buy_ticket":
-                what, valid = f"{v['origin']} → {v['destination']} · {v['travel_class']} class", v["date"]
+                what = _r(lang, "ticket.single", origin=o, destination=d, travel_class=_r(lang, f"class.{v['travel_class']}"))
+                valid = _date(v["date"], lang)
             elif a == "buy_multi":
-                what, valid = f"10-journey card {v['origin']} ↔ {v['destination']}", f"from {TODAY}, 12 months"
+                what, valid = _r(lang, "ticket.multi", origin=o, destination=d), _r(lang, "valid.year", date=today)
             else:
-                what, valid = f"Commuter pass {v['origin']} ↔ {v['destination']} · {v['months']} month(s)", f"from {TODAY}"
+                what = _r(lang, "ticket.pass", origin=o, destination=d, months=v["months"])
+                valid = _r(lang, "valid.from", date=today)
         else:
-            what, valid = f"{card['service_name']} {v['ticket_type']} ticket", f"from activation on {TODAY}"
-        return {**base, "kind": "ticket", "what": what, "valid": valid, "price": card["price_text"],
-                "qr_svg": qr_svg(ref), "title": what}
+            what = _r(lang, "ticket.local", service=card["service_name"], ticket_type=v["ticket_type"])
+            valid = _r(lang, "valid.activation", date=today)
+        return {**base, "kind": "ticket", "what": what, "valid": valid, "price": card["price_text"], "title": what}
     if s in ("qpark", "q8"):
-        return {**base, "kind": "link", "plate": v["plate"], "status": "Active",
-                "title": f"{v['plate']} linked to {card['service_name']}"}
+        return {**base, "kind": "link", "plate": v["plate"], "status": _r(lang, "status.active"),
+                "title": _r(lang, "link.title", plate=v["plate"], service=card["service_name"])}
     if s in ("cambio", "shared_bike", "driving_licence", "brussels_airport") and a != "estimate_vs_owning":
-        what = {"book_car": f"Cambio car in {v.get('city')} · {v.get('date')} · {v.get('hours')} h",
-                "rent_day_bike": f"{v.get('provider')} day bike in {v.get('city')}",
-                "book_lesson": f"Practical driving lesson · {v.get('date')} · {v.get('hours')} h",
-                "book_fast_lane": f"Fast Lane pass · {v.get('date')}", "book_lounge": f"Lounge pass · {v.get('date')}"}[a]
+        what = {"book_car": lambda: _r(lang, "booking.cambio", city=city(v.get("city")), date=_date(v.get("date"), lang), hours=v.get("hours")),
+                "rent_day_bike": lambda: _r(lang, "booking.bike", provider=v.get("provider"), city=city(v.get("city"))),
+                "book_lesson": lambda: _r(lang, "booking.lesson", date=_date(v.get("date"), lang), hours=v.get("hours")),
+                "book_fast_lane": lambda: _r(lang, "booking.fast_lane", date=_date(v.get("date"), lang)),
+                "book_lounge": lambda: _r(lang, "booking.lounge", date=_date(v.get("date"), lang))}[a]()
         extra = {"unlock_code": f"{_h('bike', ref) % 10000:04d}"} if s == "shared_bike" else {}
         return {**base, "kind": "booking", "what": what, "price": card["price_text"], "title": what, **extra}
     if s == "cambio" and a == "estimate_vs_owning":
@@ -297,60 +348,64 @@ def execute(card: dict, ctx: dict) -> dict:
         cambio = 9 + (km / 12) * 0.29 + (km / 12 / 22) * 2.80
         # monthly: owning = 420 + 0.075 * km/12 ; cambio = 9 + (0.29 + 2.80/22) * km/12  ->  equal at km:
         breakeven = int(round((420 - 9) * 12 / (0.29 + 2.80 / 22 - 0.075) / 1000) * 1000)
-        cheaper = "Cambio" if cambio < owning else "owning a car"
-        rec = (f"At {km:,} km a year, Cambio costs about €{cambio:,.0f} a month versus €{owning:,.0f} for owning a small car. "
-               f"Owning only pays off from roughly {breakeven:,} km a year." if cambio < owning else
-               f"At {km:,} km a year, owning (≈ €{owning:,.0f}/month) is cheaper than Cambio (≈ €{cambio:,.0f}/month).")
+        cambio_wins = cambio < owning
+        cheaper = _r(lang, "compare.cambio" if cambio_wins else "compare.owning")
+        rec = _r(lang, "compare.cambio_wins" if cambio_wins else "compare.owning_wins", km=i18n.number(km, lang),
+                 cambio=e(round(cambio)), owning=e(round(owning)), breakeven=i18n.number(breakeven, lang))
         return {**base, "kind": "comparison", "owning_monthly": round(owning), "cambio_monthly": round(cambio),
                 "breakeven_km": breakeven, "cheaper": cheaper, "recommendation": rec,
-                "title": f"Cheaper for you: {cheaper}"}
+                "title": _r(lang, "compare.title", cheaper=cheaper)}
     if s == "movesmart":
-        return {**base, "kind": "lease_status", "car": "Compact electric hatchback", "contract_end": "2028-03-31",
-                "km": "18,400 of 30,000 km this year", "title": "Lease car · contract until March 2028"}
+        return {**base, "kind": "lease_status", "car": _r(lang, "lease.car"), "contract_end": "2028-03-31",
+                "km": _r(lang, "lease.km"), "title": _r(lang, "lease.title")}
     if s == "service_vouchers":
-        return {**base, "kind": "order", "what": f"{v['count']} electronic service vouchers", "price": card["price_text"],
-                "title": f"{v['count']} service vouchers ordered"}
+        return {**base, "kind": "order", "what": _r(lang, "vouchers.what", count=v["count"]), "price": card["price_text"],
+                "title": _r(lang, "vouchers.title", count=v["count"])}
     if s == "split_expenses" and a == "create_group":
-        return {**base, "kind": "group", "what": f"Group '{v['name']}' · invites sent to {v['members']}", "title": f"Group '{v['name']}' created"}
+        return {**base, "kind": "group", "what": _r(lang, "group.what", name=v["name"], members=v["members"]),
+                "title": _r(lang, "group.title", name=v["name"])}
     if a in ("request_repayment", "request_money"):
-        to = v.get("contact") or f"members of '{v.get('group')}'"
-        return {**base, "kind": "payment_request", "what": f"{_eur(v['amount'])} requested from {to}",
-                "status": "Sent · awaiting payment", "title": f"Request sent to {to}"}
+        to = v.get("contact") or _r(lang, "request.members", group=v.get("group"))
+        return {**base, "kind": "payment_request", "what": _r(lang, "request.what", amount=e(v["amount"]), to=to),
+                "status": _r(lang, "request.status"), "title": _r(lang, "request.title", to=to)}
     if s == "myhome" and a == "estimate_value":
         base_value = {"Flanders": 335_000, "Wallonia": 245_000, "Brussels": 430_000}[ctx["region"]]
         val = round(base_value * (0.7 + (_h("home", ctx["uid"]) % 700) / 1000) / 1000) * 1000
         return {**base, "kind": "estimate", "value": val, "low": round(val * 0.93, -3), "high": round(val * 1.07, -3),
-                "title": f"Estimated value ≈ €{val:,.0f}"}
+                "title": _r(lang, "estimate.title", value=e(val))}
     if s == "myhome" and a == "renovation_checklist":
-        premium = {"Flanders": "Mijn VerbouwPremie", "Wallonia": "Primes Habitation", "Brussels": "Primes Renolution"}[ctx["region"]]
-        items = ["Roof insulation", "Glazing", "Heat pump or condensing boiler", "Electrical inspection", "EPC after works"]
-        return {**base, "kind": "checklist", "items": items, "premium": premium,
-                "title": f"Renovation checklist · premiums: {premium}"}
+        premium = i18n.journeys.PREMIUM[lang][ctx["region"]]
+        return {**base, "kind": "checklist", "items": _r(lang, "checklist.items"), "premium": premium,
+                "title": _r(lang, "checklist.title", premium=premium)}
     if s == "registered_email":
-        subject = TEMPLATE_LABELS[v["template"]]
+        subject = TEMPLATES[lang][v["template"]]
         return {**base, "kind": "registered_email", "recipient": v["recipient"], "subject": subject,
-                "status": "Delivered · awaiting read receipt", "sent_at": _now(), "legally_valid": True,
-                "preview": f"Dear landlord, I hereby give notice of the termination of my lease, with the move-out on {v['move_out']}. "
-                           f"Kind regards, {ctx['first_name']}", "title": f"Registered e-mail sent: {subject}"}
+                "status": _r(lang, "email.status"), "sent_at": _now(), "legally_valid": True,
+                "preview": _r(lang, "email.preview", move_out=_date(v["move_out"], lang), name=ctx["first_name"]),
+                "title": _r(lang, "email.title", subject=subject)}
     if s == "billit" and a == "list_overdue":
         inv = ctx["invoices"]
-        return {**base, "kind": "invoice_list", "invoices": inv, "total": round(sum(i["amount"] for i in inv), 2),
-                "title": f"{len(inv)} overdue invoice(s) · {_eur(sum(i['amount'] for i in inv))}"}
+        total = round(sum(i["amount"] for i in inv), 2)
+        return {**base, "kind": "invoice_list", "invoices": inv, "total": total,
+                "title": _r(lang, "invoices.title", n=len(inv), total=e(total))}
     if s == "billit" and a == "send_reminder":
         n = len(ctx["invoices"]) or 1
-        return {**base, "kind": "reminder", "what": f"Payment reminders sent for {n} invoice(s)", "status": "Sent",
-                "title": f"{n} reminder(s) sent"}
+        return {**base, "kind": "reminder", "what": _r(lang, "reminder.what", n=n), "status": _r(lang, "reminder.status"),
+                "title": _r(lang, "reminder.title", n=n)}
     if s == "gosolid":
-        return {**base, "kind": "collection", "what": f"Invoice {v['invoice']} · {_eur(v['amount'])}",
-                "status": "Case opened · first amicable letter sent to the debtor", "fee": "12% of what is recovered",
-                "title": f"Collection started for {v['invoice']}"}
+        return {**base, "kind": "collection", "what": _r(lang, "collection.what", invoice=v["invoice"], amount=e(v["amount"])),
+                "status": _r(lang, "collection.status"), "fee": _r(lang, "price.gosolid"),
+                "title": _r(lang, "collection.title", invoice=v["invoice"])}
     if s == "expenses":
-        return {**base, "kind": "submission", "what": f"{v['count']} receipts for {v['period']}", "status": "Sent to your accountant",
-                "title": f"{v['count']} receipts sent"}
+        return {**base, "kind": "submission", "what": _r(lang, "receipts.what", count=v["count"], period=v["period"]),
+                "status": _r(lang, "receipts.status"), "title": _r(lang, "receipts.title", count=v["count"])}
     if s == "financial_news":
-        titles = {"Investing basics": ["What is a fund, in 3 minutes", "Spreading risk: why it matters", "Monthly investing vs. timing the market"],
-                  "Markets today": ["European shares open higher", "What the ECB's rate path means for you", "Bond yields explained"],
-                  "Interest rates": ["Savings rates in Belgium this autumn", "Term deposits vs. bonds", "How rate cuts affect loans"]}[v["topic"]]
+        titles = _r(lang, f"articles.{v['topic']}")
         return {**base, "kind": "articles", "articles": [{"title": t, "minutes": 3 + i} for i, t in enumerate(titles)],
-                "title": f"3 articles · {v['topic']}"}
+                "title": _r(lang, "articles.title", topic=v["topic"])}
+    if s == "buffer" and a == "start":
+        return {**base, "kind": "buffer", "monthly": v["amount"], "what": _r(lang, "buffer.what", date=_date("2026-10-25", lang)),
+                "title": _r(lang, "buffer.title", amount=e(v["amount"]))}
+    if s == "buffer" and a == "stop":
+        return {**base, "kind": "buffer_stopped", "title": _r(lang, "buffer.stopped")}
     return {**base, "kind": "done", "title": card["action_name"]}

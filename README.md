@@ -20,55 +20,35 @@ Time frame: today is 1 October 2026. Features come from Oct 2025 – Sep 2026; l
 
 ## Setup
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+> **Phase 2 in progress** (Kate conversation with generative UI + Guardian). The Python engine now lives in
+> `engine/` and is an API only; the new customer app is being built in `web/`. Locked decisions are in
+> [docs/DECISIONS.md](docs/DECISIONS.md). This README is rewritten at the end of the phase.
+
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) (or any Python with the dependencies from
+`engine/pyproject.toml`, plus the `train` and `dev` groups).
 
 ```bash
-uv sync
+cd engine && uv sync --all-groups
 ```
 
 ```bash
-uv run python -m app.generate --n 200000
+cd engine && uv run python -m app.generate --n 200000
 ```
 
 ```bash
-uv run python -m app.train
+cd engine && uv run python -m app.train
 ```
 
 ```bash
-uv run uvicorn app.server:app --reload
+cd engine && uv run uvicorn app.server:app --port 8000
 ```
-
-Then open <http://localhost:8000>.
-
-No uv? The same modules run with any Python that has the dependencies from `pyproject.toml`, e.g.
-`.venv/bin/python -m app.generate --n 200000`.
-
-### Kate with Claude (optional)
-
-Export the key in the shell that starts the server. The app reads it from the environment only; it never opens
-`.env` files and never logs the key.
 
 ```bash
-export ANTHROPIC_API_KEY=...   # your key
-export ANTHROPIC_MODEL=claude-sonnet-5-5   # optional, this is the default
+cd engine && uv run pytest
 ```
 
-Without a key, or if the API is unreachable, Kate falls back to a small offline rule-based parser that works in
-English, Dutch and French. It understands:
-
-- corrections ("my income is €3,200", "my car is 2 years old", "the DIY purchases were for my parents' house")
-- plans ("we're moving in March", "I don't need a car")
-- confirmations ("that's right")
-- service requests ("park in Gent for 2 hours", "treinticket naar Brussel morgen", "un abonnement de train de
-  Gand à Alost", "stop parking")
-
-The badge in the chat header shows which mode is active.
-
-### Partner logos
-
-The UI draws placeholder badges in each partner's colours. To use real logo files, drop them into
-`app/static/logos/<service_id>.svg` (or `.png`), e.g. `sncb.svg`, `4411.svg`, `cambio.png`, and they're picked up
-automatically. Service ids are listed under [Services](#services-simulated-integrations).
+The engine serves `/engine/*` (state, ops, context packs, reference resolution, what-if, and the offline parser).
+Every request carries the customer's session; the engine keeps none.
 
 ## Performance (MacBook, 10 cores)
 

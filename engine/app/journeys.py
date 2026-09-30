@@ -8,6 +8,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
+from . import i18n
 from .common import MOMENT_LABELS, MOMENTS
 
 STAGES = {m: ["exploring", "deciding", "doing", "after"] for m in MOMENTS}
@@ -218,9 +219,10 @@ HELP_ITEMS = [
     Help("start_investing", "after", "advisor", "inv_checkin", "Portfolio check-in", "Time for a portfolio check-in with an advisor?"),
 
     # --- Cash squeeze ---
-    Help("cash_squeeze", "forecast", "info", "cash_set_aside", "Automatic set-aside on payday",
-         "Your balance may dip below zero in the coming months. Want to set aside a small buffer automatically on payday?",
-         depends=("min_balance_12m", "income_volatility"), critical=_dip),
+    Help("cash_squeeze", "forecast", "service", "cash_set_aside", "Automatic buffer on payday",
+         "Your balance may dip below zero in the coming months. Want to set aside a small buffer on payday? It tops up "
+         "your account automatically if it would go below zero.",
+         action=("buffer", "start", {}), depends=("min_balance_12m", "income_volatility"), critical=_dip),
     Help("cash_squeeze", "forecast", "service", "cash_billit_reminder", "Send reminders for {overdue_n} overdue invoice(s)",
          "{overdue_n} of your invoices ({overdue_amt}) are overdue in Billit. Shall I prepare payment reminders?",
          action=("billit", "send_reminder", {}), depends=("billit_overdue_invoices",), when=_billit, critical=_dip),
@@ -267,20 +269,30 @@ def stage_of(moment: str, x: Facts) -> tuple[str | None, str]:
     return None, "no signals yet"
 
 
-def fmt_context(values: dict, profile: dict, svc_ctx: dict) -> dict:
-    from .assumptions import eur, shift_month  # local import: assumptions imports this module
+def fmt_context(values: dict, profile: dict, svc_ctx: dict, lang: str = "en") -> dict:
+    from .assumptions import shift_month  # local import: assumptions imports this module
+
+    lang = i18n.norm(lang)
+    soon = {"en": "soon", "nl": "binnenkort", "fr": "bientôt"}[lang]
 
     def month(v):
-        return shift_month(v, True) if v is not None and not (isinstance(v, float) and math.isnan(v)) else "soon"
+        return shift_month(v, True, lang) if v is not None and not (isinstance(v, float) and math.isnan(v)) else soon
 
-    premium = {"Flanders": "Mijn VerbouwPremie", "Wallonia": "the Primes Habitation", "Brussels": "the Renolution premiums"}
+    city = i18n.journeys.city
     return {
         "lease_month": month(values.get("lease_end_months")), "td_month": month(values.get("term_deposit_maturity_months")),
-        "region": profile["region"], "premium": premium[profile["region"]], "city": profile["city"],
-        "new_city": svc_ctx.get("new_city") or profile["city"], "work_city": svc_ctx.get("work_city") or profile["city"],
+        "region": i18n.ui.REGIONS[lang][profile["region"]], "premium": i18n.journeys.PREMIUM[lang][profile["region"]],
+        "city": city(profile["city"], lang),
+        "new_city": city(svc_ctx.get("new_city") or profile["city"], lang),
+        "work_city": city(svc_ctx.get("work_city") or profile["city"], lang),
         "plate": svc_ctx.get("plate", ""), "overdue_n": int(values.get("billit_overdue_invoices") or 0),
-        "overdue_amt": eur(values.get("billit_overdue_amount") or 0),
+        "overdue_amt": i18n.eur(values.get("billit_overdue_amount") or 0, lang),
     }
+
+
+def help_text(h: "Help", lang: str) -> tuple[str, str]:
+    """(title, say) in the customer's language, unformatted."""
+    return i18n.journeys.HELP.get(lang, {}).get(h.id, (h.title, h.say))
 
 
 def _format(template: str, ctx: dict) -> str:
@@ -290,9 +302,10 @@ def _format(template: str, ctx: dict) -> str:
         return template
 
 
-def build(values: dict, probs: dict, declared: dict, profile: dict, svc_ctx: dict) -> list[dict]:
+def build(values: dict, probs: dict, declared: dict, profile: dict, svc_ctx: dict, lang: str = "en") -> list[dict]:
     """Stage and help items for every moment (plus the next stage's items, for the orchestrator)."""
-    ctx = fmt_context(values, profile, svc_ctx)
+    lang = i18n.norm(lang)
+    ctx = fmt_context(values, profile, svc_ctx, lang)
     x = Facts(values, probs, declared)
     x.fmt = lambda k: ctx.get(k, "")  # noqa: used by deadline texts
     out = []
@@ -305,14 +318,16 @@ def build(values: dict, probs: dict, declared: dict, profile: dict, svc_ctx: dic
             chosen = [h for h in HELP_ITEMS if h.moment == m and h.stage == st and (h.when is None or h.when(x))]
             chosen.sort(key=lambda h: KIND_ORDER[h.kind])
             return [{
-                "id": h.id, "moment": m, "stage": st, "kind": h.kind, "kind_label": KIND_LABELS[h.kind],
-                "title": _format(h.title, ctx), "say": _format(h.say, ctx), "depends": list(h.depends),
+                "id": h.id, "moment": m, "stage": st, "kind": h.kind, "kind_label": i18n.ui.KINDS[lang][h.kind],
+                "title": _format(help_text(h, lang)[0], ctx), "say": _format(help_text(h, lang)[1], ctx),
+                "depends": list(h.depends),
                 "action": {"service": h.action[0], "action": h.action[1], "params": h.action[2]} if h.action else None,
                 "deadline": h.deadline(x) if h.deadline else None, "critical": h.critical(x) if h.critical else None,
             } for h in chosen]
 
         out.append({
-            "moment": m, "label": MOMENT_LABELS[m], "stage": stage, "stages": stages, "rule": rule,
+            "moment": m, "label": MOMENT_LABELS[m], "label_local": i18n.ui.MOMENTS[lang][m], "stage": stage,
+            "stage_label": i18n.ui.STAGES[lang].get(stage, "") if stage else "", "stages": stages, "rule": rule,
             "probability": probs[m], "items": items_for(stage) if stage else [],
             "next_stage": nxt, "next_items": items_for(nxt) if nxt else [],
         })

@@ -56,7 +56,6 @@ def generate(n: int, seed: int) -> dict:
         [student | young, couple, family, empty_nest, retired],
         [1, 2, np.where(U() < 0.85, 2, 1), np.where(U() < 0.85, 2, 1), np.where(U() < 0.55, 2, 1)],
     ).astype(np.int16)
-    household_size = (adults + n_children).astype(np.int16)
     region = rng.choice(3, size=n, p=[0.58, 0.32, 0.10]).astype(np.int8)
     city = np.empty(n, dtype=np.int16)
     for r, name in enumerate(REGIONS):
@@ -64,16 +63,23 @@ def generate(n: int, seed: int) -> dict:
         w = np.array([w for _, w in CITIES[name]], dtype=float)
         city[region == r] = rng.choice(idx, size=int((region == r).sum()), p=w / w.sum())
 
-    emp = np.where(U() < 0.14, 1, 0)
-    emp = np.where(empty_nest & (U() < 0.12), 2, emp)
-    emp = np.where(retired, 2, np.where(student, 3, emp)).astype(np.int8)
+    # Self-employment is rarer among the very young; early retirement only from 60, everyone retired from 66.
+    emp = np.where(U() < np.where(age < 27, 0.06, 0.14), 1, 0)
+    emp = np.where(empty_nest & (age >= 60) & (U() < 0.25), 2, emp)
+    emp = np.where(retired | (age >= 66), 2, np.where(student, 3, emp)).astype(np.int8)
     tenure = np.floor(U() * (age - 17)).astype(np.int16)
 
     # --- Home -----------------------------------------------------------------------------------
-    own_p = np.array([0.02, 0.25, 0.55, 0.72, 0.82, 0.78], dtype=np.float32)[stage]
-    rent_p = np.array([0.55, 0.85, 0.95, 0.95, 0.95, 0.95], dtype=np.float32)[stage]
+    # Every customer owns, rents, or (students and young singles up to 30 only) lives with their parents.
+    own_p = np.array([0.0, 0.25, 0.55, 0.72, 0.82, 0.78], dtype=np.float32)[stage]
     owns = U() < own_p
-    renting = ~owns & (U() < rent_p)
+    parents_p = np.where(student, 0.55, np.where(young & (age <= 30), 0.25, 0.0))
+    with_parents = ~owns & (U() < parents_p)
+    renting = ~owns & ~with_parents
+    # The household is everyone in the home: parents and siblings count when living with parents.
+    in_parents_home = np.where(with_parents, 1 + (U() < 0.75) + np.minimum(rng.poisson(0.7, n), 3), 0)
+    household_size = (adults + n_children + in_parents_home).astype(np.int16)
+    own_household = adults + n_children  # the customer, a partner and their children: drives costs
     recent_p = np.array([0.3, 0.3, 0.25, 0.12, 0.04, 0.02], dtype=np.float32)[stage]
     recent_buyer = owns & (U() < recent_p)
     msince_home = np.where(
@@ -84,23 +90,26 @@ def generate(n: int, seed: int) -> dict:
     mortgage_reset = np.where(has_mortgage & (U() < 0.25), rng.integers(1, 61, n), np.nan).astype(np.float32)
 
     # --- Income -----------------------------------------------------------------------------
+    # Net household income. Starters earn less: the self-employed build up their business over ~25 years.
     two = adults == 2
+    Z = lambda: np.clip(N(), -2.5, 2.5)  # noqa: E731  (no extreme incomes)
     inc_base = np.select(
         [emp == 0, emp == 1, emp == 2, emp == 3],
         [
-            (1900 + 45 * np.clip(age - 22, 0, 30)) * np.exp(0.28 * N()) * np.where(two, 1.75, 1.0),
-            2600 * np.exp(0.45 * N()) * np.where(two, 1.6, 1.0),
-            1500 * np.exp(0.25 * N()) * np.where(two, 1.6, 1.0),
-            500 * np.exp(0.5 * N()),
+            (1900 + 45 * np.clip(age - 22, 0, 30)) * np.exp(0.28 * Z()) * np.where(two, 1.75, 1.0),
+            (1500 + 60 * np.clip(age - 22, 0, 25)) * np.exp(0.40 * Z()) * np.where(two, 1.6, 1.0),
+            1500 * np.exp(0.25 * Z()) * np.where(two, 1.6, 1.0),
+            500 * np.exp(0.5 * Z()),
         ],
     )
     inc_base = f32(np.round(inc_base / 10) * 10)
     inc_sigma = np.select(
         [emp == 0, emp == 1, emp == 2, emp == 3],
-        [np.where(U() < 0.10, 0.12 + 0.23 * U(), 0.03), 0.15 + 0.55 * U(), 0.01, 0.2 + 0.4 * U()],
+        [np.where(U() < 0.10, 0.10 + 0.15 * U(), 0.03), 0.12 + 0.28 * U(), 0.01, 0.15 + 0.30 * U()],
     ).astype(np.float32)
     s = inc_sigma[:, None]
-    inc = inc_base[:, None] * np.exp(s * N(n, 24) - s * s / 2)
+    # A good month is at most 2.2x the usual income: no jackpots.
+    inc = np.minimum(inc_base[:, None] * np.exp(s * N(n, 24) - s * s / 2), 2.2 * inc_base[:, None])
     dry = ((emp == 1)[:, None] & (U(n, 24) < 0.05)) | ((emp == 3)[:, None] & (U(n, 24) < 0.10))
     inc = f32(np.where(dry, inc * 0.1, inc))
     # Hidden: self-employed whose clients pay late. Income dips now and more in the coming months.
@@ -155,12 +164,12 @@ def generate(n: int, seed: int) -> dict:
 
     # Spending categories, 12 observed months each.
     groceries = (260 * adults + 140 * n_children + 180 * student)[:, None] * np.exp(0.12 * N(n, 12))
-    rent = (620 + 180 * (household_size - 1)) * np.array([1.0, 0.85, 1.25])[region] * np.exp(0.18 * N())
+    rent = (620 + 180 * (own_household - 1)) * np.array([1.0, 0.85, 1.25])[region] * np.exp(0.18 * N())
     rent = np.where(student, 430 * np.array([1.0, 0.85, 1.25])[region] * np.exp(0.15 * N()), rent)
     mortgage_pay = 950 * np.array([1.0, 0.85, 1.25])[region] * np.exp(0.3 * N())
     housing_m = np.where(renting, rent, np.where(has_mortgage, mortgage_pay, np.where(owns, 120, 0)))
     housing = np.repeat(f32(np.round(housing_m))[:, None], 12, axis=1)
-    other_fixed = (180 + 70 * household_size) * np.exp(0.3 * N()) + 90 * has_car
+    other_fixed = (180 + 70 * own_household) * np.exp(0.3 * N()) + 90 * has_car
     fixed_ratio = f32(np.clip((housing_m + other_fixed) / np.maximum(net_income, 1), 0.05, 1.5))
 
     transport = np.where(has_car, 110, 45)[:, None] * np.exp(0.25 * N(n, 12))
@@ -195,7 +204,7 @@ def generate(n: int, seed: int) -> dict:
     travel = travel_budget[:, None] * travel_w * (U(n, 12) < 0.85)
 
     # --- Service usage in KBC Mobile (simulated integrations) --------------------------------------
-    young = age <= 26
+    under27 = age <= 26
     uses_4411 = has_car & (U() < 0.45)
     home_sessions = uses_4411 * rng.poisson(np.where(region == 2, 9, 5) * (0.3 + U()))
     away = has_car & ((i_move & (U() < 0.35)) | (~i_move & (U() < 0.07)))  # house hunting / other trips
@@ -216,7 +225,7 @@ def generate(n: int, seed: int) -> dict:
     cambio = ((~has_car & (U() < np.where(region == 2, 0.25, 0.10))) * rng.poisson(6, n)
               + (i_car & ~has_car & (U() < 0.35)) * rng.poisson(5, n)).astype(np.int16)
     fuel = f32(np.round(np.where(has_car, (transport.sum(1) - repair_base - big_repair) * np.where(lease_car, 0.3, 1.0), 0), 2))
-    dl_prep = ~has_car & ((young & (U() < np.where(i_car, 0.55, 0.10))) | (~young & (U() < np.where(i_car, 0.12, 0.01))))
+    dl_prep = ~has_car & ((under27 & (U() < np.where(i_car, 0.55, 0.10))) | (~under27 & (U() < np.where(i_car, 0.12, 0.01))))
     myhome = (owns * (U() < 0.06) * rng.poisson(1.5, n) + (i_move & owns & (U() < 0.35)) * (1 + rng.poisson(2, n))
               + (i_reno & (U() < 0.25)) * (1 + rng.poisson(1.5, n)) + (i_move & renting & (U() < 0.15)) * (1 + rng.poisson(1, n)))
     reg_mail = (renting & ((i_move & (U() < 0.25)) | (U() < 0.025))) * (1 + (U() < 0.2))
@@ -299,6 +308,7 @@ def generate(n: int, seed: int) -> dict:
         "household_size": household_size, "n_children": n_children,
         "employment_type": np.array(EMPLOYMENT)[emp], "employer_name": employer,
         "tenure_years": tenure, "owns_home": owns, "renting": renting,
+        "housing": np.select([owns, renting], ["owner", "tenant"], "with_parents"),
     })
     features = pd.DataFrame({
         "user_id": uid,
@@ -346,7 +356,41 @@ def generate(n: int, seed: int) -> dict:
         "user_id": uid, "move_house": move_house, "buy_car": buy_car, "renovation": renovation,
         "start_investing": start_investing, "cash_squeeze": cash_squeeze,
     })
-    return {"profiles": profiles, "features": features, "monthly": monthly, "outcomes": outcomes}
+    habits = payment_habits(seed, uid, stage, age, emp, region, inc_base, travel_budget)
+    return {"profiles": profiles, "features": features, "monthly": monthly, "outcomes": outcomes,
+            "payment_habits": habits}
+
+
+def payment_habits(seed, uid, stage, age, emp, region, inc_base, travel_budget) -> pd.DataFrame:
+    """How each customer usually pays: the input of the Guardian's behavioural baseline.
+
+    Used only by the Guardian (security), never as a model feature, in the orchestrator or for marketing.
+    Drawn from its own random stream so it doesn't shift the rest of the synthetic bank.
+    """
+    n = len(uid)
+    rng = np.random.default_rng(seed + 1_000_003)
+    U = lambda: rng.random(n, dtype=np.float32)  # noqa: E731
+    retired, student = emp == 2, emp == 3
+    self_employed = emp == 1
+
+    payees = np.array([3, 5, 7, 9, 8, 5])[stage] + rng.poisson(2, n) + self_employed * (4 + rng.poisson(3, n))
+    per_week = (np.array([1.2, 2.0, 2.5, 3.5, 2.5, 1.5])[stage] * np.where(self_employed, 1.8, 1.0)
+                * np.exp(0.3 * rng.standard_normal(n)))
+    typical = np.clip(inc_base * 0.07 * np.exp(0.4 * rng.standard_normal(n)), 20, 900)
+    # Most customers never pay abroad; Brussels residents and frequent travellers more often do.
+    abroad_p = 0.12 + 0.10 * (region == 2) + 0.15 * np.clip(travel_budget / 6000, 0, 1)
+    abroad = np.where(U() < abroad_p, 0.02 + 0.10 * U(), 0.0)
+    start = np.where(retired, 8, np.where(student, 10, 7)) + rng.integers(0, 2, n)
+    end = np.where(retired, 19, np.where(student, 24, 22)) - rng.integers(0, 2, n) * (~student)
+    devices = np.where(retired | (age >= 70), np.where(U() < 0.8, 1, 2), rng.choice([1, 2, 3], size=n, p=[0.45, 0.45, 0.10]))
+    wero = U() < np.clip(0.75 - 0.012 * (age - 18), 0.08, 0.75)
+    savings_moves = np.where(U() < 0.35, 1 + rng.poisson(1.5, n), 0)
+    return pd.DataFrame({
+        "user_id": uid, "n_payees": payees.astype(np.int16), "payments_per_week": f32(np.round(per_week, 2)),
+        "typical_amount": f32(np.round(typical, -1)), "abroad_share": f32(np.round(abroad, 3)),
+        "active_from": start.astype(np.int8), "active_to": end.astype(np.int8), "n_devices": devices.astype(np.int8),
+        "uses_wero": wero, "savings_moves_per_year": savings_moves.astype(np.int8), "has_suppliers": self_employed,
+    })
 
 
 def write(tables: dict) -> None:
@@ -356,7 +400,7 @@ def write(tables: dict) -> None:
         if p.exists():
             p.unlink()
     con = duckdb.connect(str(DB_PATH))
-    for name in ("profiles", "features", "outcomes"):
+    for name in ("profiles", "features", "outcomes", "payment_habits"):
         df = tables[name]  # noqa: F841  (scanned by DuckDB by name)
         con.execute(f"CREATE TABLE {name} AS SELECT * FROM df")
 

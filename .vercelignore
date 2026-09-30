@@ -1,0 +1,14 @@
+# Allowlist: upload only the two services and the project config.
+/*
+!vercel.json
+!web
+!engine
+# Never upload secrets, local tooling or build output.
+**/.env*
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+engine/tests
+web/e2e
+web/test-results

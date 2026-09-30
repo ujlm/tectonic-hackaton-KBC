@@ -2,7 +2,7 @@
 
 Rules
 - budget: 1 proactive Kate conversation per month; time-critical items (predicted dip, deadlines) may exceed it
-- channel follows urgency: in-app Kate card by default, push notification only for deadlines
+- channel: always the in-app Kate conversation, shown when the customer opens the app (never a push in this demo)
 - suppression: items built on an assumption the customer rejected disappear; ignored topics pause 60 days
 - bundling: all items for the same moment become one Kate conversation
 """
@@ -65,7 +65,7 @@ def plan(journeys: list[dict], session: dict, sentences: dict, baseline: list[di
         conversations.append({
             "moment": m, "label": j["label"], "stage": j["stage"], "lead": lead, "items": live,
             "priority": j["probability"] * STAGE_WEIGHT.get(j["stage"], 1) + (1 if critical else 0),
-            "time_critical": critical, "channel": "push" if deadline else "in-app Kate card",
+            "time_critical": critical, "deadline": deadline, "channel": "in-app",
         })
 
     conversations.sort(key=lambda c: -c["priority"])
@@ -94,7 +94,18 @@ def plan(journeys: list[dict], session: dict, sentences: dict, baseline: list[di
 
 
 def _slim(c: dict) -> dict:
-    return {k: c[k] for k in ("moment", "label", "stage", "lead", "items", "time_critical", "channel", "month", "why", "exceeds")}
+    return {k: c[k] for k in ("moment", "label", "stage", "lead", "items", "time_critical", "deadline", "channel", "month",
+                              "why", "exceeds")}
+
+
+def pick_opener(kate: dict) -> dict | None:
+    """At most one topic for when the customer opens the app now: this month's conversation, if any passed."""
+    now = [c for c in kate["passed"] if c["month"] == QUARTER_MONTHS[0]]
+    if not now:
+        return None
+    c = now[0]
+    return {"moment": c["moment"], "stage": c["stage"], "lead": c["lead"]["id"], "items": [it["id"] for it in c["items"]],
+            "time_critical": c["time_critical"], "why": c["why"]}
 
 
 def scale_view(rows: list[dict]) -> dict:
@@ -102,7 +113,7 @@ def scale_view(rows: list[dict]) -> dict:
     Simplification: each customer's stages stay as they are today for the whole year.
     Without: every eligible help item is pushed once per quarter (campaign-style).
     With: per quarter, at most 3 conversations (1 per month), bundled per moment, plus time-critical ones."""
-    without, with_, pushes, reached = [], [], [], 0
+    without, with_, urgent, reached = [], [], [], 0
     for r in rows:
         probs, values, profile = r["probs"], r["values"], r["profile"]
         js = build(values, probs, {}, profile, {"plate": "", "new_city": profile["city"], "work_city": profile["city"]})
@@ -114,13 +125,13 @@ def scale_view(rows: list[dict]) -> dict:
         per_q = len(crit) + min(normal, max(0, 3 - len(crit)))
         without.append(n_items * 4)
         with_.append(per_q * 4)
-        pushes.append(len(dl) * 4)
+        urgent.append(len(dl) * 4)
         reached += per_q > 0
     n = max(len(rows), 1)
     mean = lambda xs: sum(xs) / n  # noqa: E731
     p90 = lambda xs: sorted(xs)[int(0.9 * (len(xs) - 1))] if xs else 0  # noqa: E731
     return {"customers": len(rows), "without_mean": round(mean(without), 1), "with_mean": round(mean(with_), 1),
-            "without_p90": p90(without), "with_p90": p90(with_), "push_mean": round(mean(pushes), 2),
+            "without_p90": p90(without), "with_p90": p90(with_), "deadline_mean": round(mean(urgent), 2),
             "reached_share": round(reached / n, 3), "max_with": max(with_) if with_ else 0,
             "reduction": round(1 - mean(with_) / mean(without), 3) if mean(without) else 0,
             "note": "Assumes each customer's journey stages stay as they are today for the whole year."}

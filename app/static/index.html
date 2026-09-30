@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kate · Explainable assumptions</title>
+<meta name="description" content="Hackathon prototype: predicted moments, the assumptions behind them, and Kate's one-tap actions through simulated KBC Mobile service integrations. All data is synthetic.">
+<style>
+:root {
+  --navy: #003665; --blue: #00aeef; --blue-deep: #0071b3;
+  --bg: #eef3f8; --surface: #ffffff; --surface-2: #f5f8fb; --text: #0b2340; --muted: #53657d; --faint: #8595aa;
+  --border: #dce4ee; --border-strong: #c7d3e1;
+  --primary: #003665; --primary-text: #ffffff; --accent: #0071b3; --accent-soft: #e3f4fc; --accent-text: #005a8f;
+  --up: #b4480d; --up-soft: #fdf0e6; --down: #0e746c; --down-soft: #e4f5f2;
+  --told: #6d3fd1; --told-soft: #f1ebfd; --ok: #177a3d; --ok-soft: #e6f5ec; --err: #b42318; --err-soft: #fdecea;
+  --warn: #9a5b00; --warn-soft: #fff4dc; --neg: #d1453b;
+  --shadow: 0 1px 2px rgba(0, 38, 77, .05), 0 2px 6px rgba(0, 38, 77, .06);
+  --radius: 14px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #061427; --surface: #0c2039; --surface-2: #122a48; --text: #e7eff9; --muted: #9fb1c9; --faint: #6f829c;
+    --border: #1c3656; --border-strong: #27466d;
+    --primary: #33c2f5; --primary-text: #04172d; --accent: #4cc9f7; --accent-soft: #10304f; --accent-text: #9fdcf8;
+    --up: #f79a5b; --up-soft: #33200f; --down: #3fd0bd; --down-soft: #0d2c2b;
+    --told: #b597f7; --told-soft: #251d45; --ok: #58d68d; --ok-soft: #0f2e22; --err: #ff8a80; --err-soft: #3a1512;
+    --warn: #ffc56b; --warn-soft: #33260c; --neg: #ff7b72; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #061427; --surface: #0c2039; --surface-2: #122a48; --text: #e7eff9; --muted: #9fb1c9; --faint: #6f829c;
+  --border: #1c3656; --border-strong: #27466d;
+  --primary: #33c2f5; --primary-text: #04172d; --accent: #4cc9f7; --accent-soft: #10304f; --accent-text: #9fdcf8;
+  --up: #f79a5b; --up-soft: #33200f; --down: #3fd0bd; --down-soft: #0d2c2b;
+  --told: #b597f7; --told-soft: #251d45; --ok: #58d68d; --ok-soft: #0f2e22; --err: #ff8a80; --err-soft: #3a1512;
+  --warn: #ffc56b; --warn-soft: #33260c; --neg: #ff7b72; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 0 20px; }
+
+/* ---------- KBC-style top bar ---------- */
+.appbar { background: var(--navy); color: #fff; }
+.appbar .wrap { display: flex; align-items: center; gap: 14px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+.wordmark { font-weight: 800; font-size: 22px; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+.wordmark .dot { width: 26px; height: 26px; border-radius: 7px; background: var(--blue); display: grid; place-items: center; }
+.wordmark .dot svg { width: 16px; height: 16px; }
+.brand .product { font-size: 15px; color: #bfe9fb; font-weight: 600; }
+.brand .product b { color: #fff; }
+.pill-proto { font-size: 11.5px; font-weight: 600; letter-spacing: .03em; border: 1px solid rgba(255, 255, 255, .35); color: #dff4fd; border-radius: 99px; padding: 3px 9px; }
+.appbar .icon-btn { border-color: rgba(255, 255, 255, .35); color: #fff; background: transparent; }
+.subbar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+.subbar .wrap { display: flex; gap: 8px; align-items: center; padding-top: 10px; padding-bottom: 10px; overflow-x: auto; scrollbar-width: thin; }
+.subbar .lbl { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; margin-right: 4px; }
+.btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-size: 14px; font-weight: 600; transition: background .15s, border-color .15s; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
+.btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.btn.small { padding: 5px 11px; font-size: 13px; }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .5; cursor: default; }
+.icon-btn { width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center; }
+
+/* ---------- layout ---------- */
+main.wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(320px, .95fr); gap: 20px; padding-top: 20px; padding-bottom: 24px; align-items: start; }
+.band { grid-column: 1 / -1; }
+@media (max-width: 1200px) { main.wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .col-kate { grid-column: 1 / -1; } }
+@media (max-width: 780px) {
+  main.wrap { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; gap: 16px; }
+  .appbar .wrap, .subbar .wrap { padding-left: 16px; padding-right: 16px; }
+  .brand .product span, .pill-proto { display: none; }
+}
+.col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.panel > .hd { padding: 14px 18px 0; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.panel > .hd h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; font-weight: 700; }
+.panel > .hd .aside { font-size: 12px; color: var(--faint); }
+.panel > .bd { padding: 12px 18px 18px; }
+.sim { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); background: var(--warn-soft); border-radius: 5px; padding: 2px 6px; white-space: nowrap; }
+.sim::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ---------- Kate band ---------- */
+.kate-band { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(220px, .7fr); gap: 18px; }
+@media (max-width: 1200px) { .kate-band { grid-template-columns: 1fr 1fr; } .kate-band .scale { grid-column: 1 / -1; } }
+@media (max-width: 780px) { .kate-band { grid-template-columns: 1fr; } }
+.kate-band h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+.convs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.conv { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.conv .top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.conv .say { font-size: 14px; }
+.conv .say::before { content: "Kate: "; font-weight: 700; color: var(--accent-text); }
+.conv ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--muted); }
+.conv .why { font-size: 12px; color: var(--faint); }
+.conv .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.chan { font-size: 11.5px; font-weight: 700; border-radius: 99px; padding: 2px 8px; background: var(--accent-soft); color: var(--accent-text); }
+.chan.push { background: var(--warn-soft); color: var(--warn); }
+.held { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.held li { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.held li:first-child { border-top: 0; }
+.held .why { grid-column: 2; color: var(--faint); font-size: 12px; }
+.reason { font-size: 11px; font-weight: 700; border-radius: 5px; padding: 1px 6px; white-space: nowrap; align-self: start; margin-top: 1px; }
+.reason.budget { background: var(--warn-soft); color: var(--warn); }
+.reason.suppressed { background: var(--err-soft); color: var(--err); }
+.reason.bundled { background: var(--accent-soft); color: var(--accent-text); }
+.reason.stage { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.scale .big { font-size: 28px; font-weight: 750; letter-spacing: -.02em; }
+.scale .bars { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.scale .b { font-size: 12.5px; color: var(--muted); }
+.scale .track { height: 10px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; margin-top: 3px; }
+.scale .track i { display: block; height: 100%; background: var(--faint); }
+.scale .track i.with { background: var(--accent); }
+.scale small { color: var(--faint); font-size: 11.5px; display: block; }
+
+/* ---------- profile & chart ---------- */
+.who { display: flex; gap: 14px; align-items: center; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); display: grid; place-items: center; font-weight: 700; font-size: 18px; flex: none; }
+.who .name { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.who .line { color: var(--muted); font-size: 14px; }
+.chart { margin-top: 14px; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* ---------- moments & journeys ---------- */
+.moment { padding: 12px 0; border-top: 1px solid var(--border); transition: background .6s; border-radius: 8px; }
+.moment:first-child { border-top: 0; padding-top: 4px; }
+.moment .row { display: flex; align-items: baseline; gap: 10px; }
+.moment .label { font-weight: 650; flex: 1; min-width: 0; }
+.moment .prob { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.moment .prob .was { font-size: 14px; color: var(--faint); font-weight: 500; text-decoration: line-through; margin-right: 6px; }
+.bar { position: relative; height: 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 99px; margin: 8px 0 6px; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 99px; transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+.bar .fill.told { background: var(--told); }
+.bar .tick { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); border-radius: 2px; transform: translateX(-1px); transition: left .6s; }
+.moment .meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.moment .meta b { color: var(--text); font-weight: 650; }
+.moment.changed { background: var(--accent-soft); box-shadow: 0 0 0 8px var(--accent-soft); }
+.stepper { display: flex; gap: 3px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.stepper span { font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 99px; color: var(--faint); background: var(--surface-2); border: 1px solid var(--border); }
+.stepper span.on { color: #fff; background: var(--navy); border-color: var(--navy); }
+:root[data-theme="dark"] .stepper span.on { color: var(--primary-text); background: var(--primary); border-color: var(--primary); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stepper span.on { color: var(--primary-text); background: var(--primary); border-color: var(--primary); } }
+.stepper span.past { color: var(--muted); }
+.stepper .more { border: 0; background: none; color: var(--accent-text); font-size: 12px; font-weight: 650; padding: 2px 4px; margin-left: auto; }
+.help { margin-top: 8px; border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; display: flex; flex-direction: column; gap: 8px; }
+.help .rule { font-size: 12px; color: var(--faint); }
+.help .it { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+.help .it .t { flex: 1; min-width: 160px; }
+.kind { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border-radius: 5px; padding: 2px 6px; white-space: nowrap; }
+.kind.info { background: var(--ok-soft); color: var(--ok); }
+.kind.service { background: var(--accent-soft); color: var(--accent-text); }
+.kind.product { background: var(--told-soft); color: var(--told); }
+.kind.advisor { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 650; border-radius: 99px; padding: 2px 8px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+.tag.told { background: var(--told-soft); color: var(--told); border-color: transparent; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.tag.src { background: transparent; }
+.declare { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-strong); font-size: 13px; color: var(--muted); }
+select, input[type="number"], input[type="text"] { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 8px; font-size: 14px; min-width: 0; }
+select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- assumption cards ---------- */
+.cards { display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); transition: border-color .4s, box-shadow .4s; }
+.card.flash { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.card .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.card .sentence { font-size: 17px; font-weight: 650; letter-spacing: -.01em; line-height: 1.35; }
+.card .evidence { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+.card .was { color: var(--faint); font-size: 13px; margin-top: 4px; }
+.tx { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+.tx li { display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 4px 0; border-top: 1px solid var(--border); color: var(--muted); }
+.tx li:first-child { border-top: 0; }
+.tx .m { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx .a { font-variant-numeric: tabular-nums; color: var(--text); }
+.tx .a.in { color: var(--ok); }
+.effects { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.fx { font-size: 12.5px; font-weight: 650; border-radius: 6px; padding: 3px 8px; font-variant-numeric: tabular-nums; }
+.fx.up { background: var(--up-soft); color: var(--up); }
+.fx.down { background: var(--down-soft); color: var(--down); }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+.actions .note { font-size: 12.5px; color: var(--faint); }
+.edit { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.edit input { width: 140px; }
+.edit .unit { color: var(--muted); font-size: 13px; }
+.err { color: var(--err); background: var(--err-soft); border-radius: 8px; padding: 6px 10px; font-size: 13px; margin-top: 10px; }
+.hint { font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; margin: -4px 2px 0; }
+
+/* ---------- logos ---------- */
+.logo { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: .01em; flex: none; line-height: 1; text-align: center; }
+.logo img { max-width: 28px; max-height: 28px; }
+.logo.sm { min-width: 22px; height: 22px; font-size: 8.5px; border-radius: 6px; padding: 0 4px; }
+
+/* ---------- Kate chat ---------- */
+.col-kate { position: sticky; top: 64px; }
+@media (max-width: 1200px) { .col-kate { position: static; } }
+.chat { display: flex; flex-direction: column; height: min(640px, calc(100vh - 90px)); }
+@media (max-width: 1200px) { .chat { height: 600px; } }
+.kate-hd { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.kate-av { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--navy), var(--blue)); color: #fff; display: grid; place-items: center; font-weight: 800; flex: none; }
+.kate-hd .n { font-weight: 700; }
+.kate-hd .s { font-size: 12px; color: var(--muted); }
+.kate-hd .mode { margin-left: auto; }
+.chat .msgs { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 92%; padding: 9px 13px; border-radius: 14px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.user { align-self: flex-end; background: var(--primary); color: var(--primary-text); border-bottom-right-radius: 4px; }
+.msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg .acts { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
+.msg .acts span { font-size: 11px; border-radius: 99px; padding: 1px 7px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+.msg .acts span.bad { color: var(--err); }
+.msg.typing { color: var(--faint); }
+.suggest { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 10px; }
+.suggest button { font-size: 12.5px; border: 1px dashed var(--border-strong); background: transparent; border-radius: 99px; padding: 4px 10px; color: var(--muted); text-align: left; }
+.suggest button:hover { border-color: var(--accent); color: var(--accent-text); }
+.composer { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+.composer textarea { flex: 1; resize: none; border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 11px; height: 42px; background: var(--surface); font-size: 14px; }
+
+/* ---------- action & result cards ---------- */
+.acard { align-self: stretch; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.acard .h { display: flex; gap: 10px; align-items: center; }
+.acard .h .t { font-weight: 700; font-size: 14px; line-height: 1.25; }
+.acard .h .t small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
+.acard .h .sim { margin-left: auto; }
+.acard .sum { font-size: 13.5px; }
+.acard .flags { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.acard .flags span { border: 1px solid var(--border); border-radius: 99px; padding: 1px 8px; }
+.acard .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.acard .note { font-size: 12px; color: var(--faint); }
+.acard.done { border-color: var(--ok); }
+.acard.cancelled { opacity: .6; }
+.res { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
+.res dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 13px; }
+.res dt { color: var(--muted); }
+.res dd { margin: 0; overflow-wrap: anywhere; }
+.res .qr { background: #fff; border-radius: 8px; padding: 4px; border: 1px solid var(--border); }
+.res .qr svg { display: block; width: 92px; height: 92px; }
+.res .qr small { display: block; text-align: center; font-size: 9.5px; color: #555; }
+.cmp { display: flex; flex-direction: column; gap: 6px; font-size: 13px; grid-column: 1 / -1; }
+.cmp .track { height: 10px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.cmp .track i { display: block; height: 100%; background: var(--accent); }
+.cmp .track i.own { background: var(--faint); }
+.activity { display: flex; flex-direction: column; gap: 10px; }
+.services { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.svc { display: flex; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 7px 8px; font-size: 12.5px; background: var(--surface-2); min-width: 0; }
+.svc .nm { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc .sg { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc > div { min-width: 0; }
+
+/* ---------- toast, footer, misc ---------- */
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 50; background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; transition: opacity .25s, transform .25s; max-width: calc(100vw - 32px); box-shadow: 0 8px 30px rgba(0, 0, 0, .18); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+footer { border-top: 1px solid var(--border); margin-top: 8px; background: var(--surface); }
+footer .wrap { padding-top: 18px; padding-bottom: 28px; display: grid; grid-template-columns: 1fr auto; gap: 20px; color: var(--muted); font-size: 13px; }
+@media (max-width: 780px) { footer .wrap { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; } }
+footer h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; color: var(--muted); }
+footer ul { margin: 0; padding-left: 18px; columns: 2; column-gap: 28px; }
+@media (max-width: 780px) { footer ul { columns: 1; } }
+footer .synthetic { font-weight: 700; color: var(--text); }
+.empty { color: var(--faint); font-size: 14px; padding: 8px 0; }
+.skeleton { height: 120px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2)); background-size: 200% 100%; animation: sk 1.2s infinite; border: 1px solid var(--border); }
+@keyframes sk { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="wrap">
+    <div class="brand">
+      <div class="wordmark"><span class="dot"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4" r="2.6" fill="#fff"/><path d="M3 15c0-3.2 2.2-5.6 5-5.6s5 2.4 5 5.6" fill="#fff"/></svg></span>KBC</div>
+      <div class="product">Mobile · <b>Kate</b> <span>· explainable assumptions</span></div>
+    </div>
+    <span class="pill-proto">Hackathon prototype · simulated integrations · synthetic data</span>
+    <button class="btn icon-btn" id="themeBtn" title="Switch light / dark" aria-label="Switch light or dark theme">◐</button>
+  </div>
+</header>
+<nav class="subbar" aria-label="Demo customers">
+  <div class="wrap" id="picker">
+    <span class="lbl">Demo customers</span>
+    <button class="btn primary small" id="randomBtn">Random customer</button>
+    <button class="btn small ghost" id="resetBtn" title="Undo every correction and action for this customer">Reset</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="panel band">
+    <div class="hd"><h2>What Kate would say this quarter</h2><span class="aside" id="kateAside">Oct – Dec 2026 · budget: 1 proactive message a month</span></div>
+    <div class="bd kate-band">
+      <div><h3>Passed the attention budget</h3><div class="convs" id="convs"></div></div>
+      <div><h3>Held back, and why</h3><ul class="held" id="held"></ul></div>
+      <div class="scale" id="scale"><h3>At scale</h3><div class="empty">Computing…</div></div>
+    </div>
+  </section>
+
+  <div class="col">
+    <section class="panel">
+      <div class="hd"><h2>Customer</h2><span class="aside num" id="uidLabel"></span></div>
+      <div class="bd"><div id="profile"><div class="skeleton"></div></div><div class="chart" id="chart"></div></div>
+    </section>
+    <section class="panel">
+      <div class="hd"><h2>Predicted moments · journey</h2><span class="aside">Oct 2026 – Sep 2027</span></div>
+      <div class="bd">
+        <div id="moments"></div>
+        <div class="declare">
+          <span>Tell us about a plan:</span>
+          <select id="declEvent" aria-label="Event">
+            <option value="move_house">Moving house</option><option value="buy_car">Buying a car</option>
+            <option value="renovation">Renovating</option><option value="start_investing">Starting to invest</option>
+            <option value="birth">A new baby (only you can tell us)</option>
+          </select>
+          <select id="declMonth" aria-label="Month"></select>
+          <button class="btn small" id="declBtn">Add</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col">
+    <div class="hint"><span><b>Assumptions</b> behind these estimates, strongest first</span><span><span class="fx up">+ pts</span> raises · <span class="fx down">− pts</span> lowers</span></div>
+    <div class="cards" id="cards"><div class="skeleton"></div><div class="skeleton"></div></div>
+  </div>
+
+  <div class="col col-kate">
+    <section class="panel chat">
+      <div class="kate-hd"><div class="kate-av">K</div><div><div class="n">Kate</div><div class="s">Your assistant in KBC Mobile</div></div><span class="tag mode" id="modeTag">…</span></div>
+      <div class="msgs" id="msgs" aria-live="polite"></div>
+      <div class="suggest" id="suggest"></div>
+      <form class="composer" id="composer">
+        <textarea id="input" placeholder="E.g. “Park in Gent for 2 hours” · “Treinticket naar Brussel” · “Je n'ai plus besoin de voiture”" aria-label="Message"></textarea>
+        <button class="btn primary" id="sendBtn" type="submit">Send</button>
+      </form>
+    </section>
+    <section class="panel">
+      <div class="hd"><h2>Your activity</h2><span class="sim">simulated integration</span></div>
+      <div class="bd"><div class="activity" id="activity"></div></div>
+    </section>
+    <section class="panel">
+      <div class="hd"><h2>Services in KBC Mobile</h2><span class="sim">simulated integration</span></div>
+      <div class="bd"><div class="services" id="services"></div></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><h3>Signals we don't use</h3><ul id="notUsed"></ul></div>
+    <div>
+      <h3>About</h3>
+      <div class="synthetic">All data is synthetic.</div>
+      <div>Hackathon prototype, not an official KBC application. Partner integrations are simulated; logos are placeholders.</div>
+      <div id="modelInfo" class="num"></div>
+    </div>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (p) => (p == null ? "—" : `${Math.round(p * 100)}%`);
+const eur = new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const money = (v) => (v < 0 ? "−" : "") + eur.format(Math.abs(v));
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const OUT_MONTHS = Array.from({ length: 12 }, (_, i) => { const m = (9 + i) % 12; const y = 2026 + (9 + i >= 12 ? 1 : 0); return { v: `${y}-${String(m + 1).padStart(2, "0")}`, l: `${MONTHS[m]} ${y}` }; });
+const STAGE_LABEL = { exploring: "Exploring", deciding: "Deciding", doing: "Doing", after: "After", forecast: "Forecast", short: "Short" };
+const REASON = { budget: ["budget", "Budget"], suppressed: ["suppressed", "Suppressed"], bundled: ["bundled", "Bundled"], "not the right stage yet": ["stage", "Not the right stage yet"] };
+const SHORT = { "4411": "4411", qpark: "Q-Park", sncb: "SNCB", delijn: "De Lijn", stib: "STIB", shared_bike: "BIKE", cambio: "cambio", q8: "Q8", movesmart: "move", driving_licence: "DRIVE", brussels_airport: "BRU", service_vouchers: "SV", split_expenses: "SPLIT", wero: "wero", myhome: "MyHome", registered_email: "@", billit: "Billit", gosolid: "Go Solid", expenses: "EXP", financial_news: "NEWS" };
+
+let S = null, chatHistory = [], meta = null, SERVICES = {}, changes = {}, changeTimer = null, editing = null, cardErrors = {};
+let openMoments = new Set();
+
+// ---------- theme ----------
+const themeKey = "kate-theme";
+function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+try { applyTheme(localStorage.getItem(themeKey)); } catch (e) {}
+$("#themeBtn").onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = cur === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try { localStorage.setItem(themeKey, next); } catch (e) {}
+};
+
+// ---------- api ----------
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Request failed (${r.status})`);
+  return data;
+}
+
+async function loadUser(uid) {
+  const st = uid ? await api(`/api/users/${uid}`) : await api("/api/users/random");
+  chatHistory = []; changes = {}; editing = null; cardErrors = {}; openMoments = new Set();
+  $("#msgs").innerHTML = "";
+  setState(st);
+  if (location.hash.slice(1) !== String(st.user_id)) window.history.replaceState(null, "", `#${st.user_id}`);
+  const first = S.kate.passed[0];
+  addMsg("bot", `Hi ${st.profile.first_name}! I'm Kate. Left: what we expect in the next 12 months and where you are in each journey. Middle: the assumptions behind it; tell me or tap if something's wrong.` + (first ? `\n\n${first.lead.say}` : ""));
+  renderSuggestions();
+  document.querySelectorAll("#picker .btn[data-uid]").forEach((b) => b.classList.toggle("active", +b.dataset.uid === st.user_id));
+}
+
+function setState(st) { S = st; render(); }
+
+function applyResult(res, focusFeature) {
+  const diff = res.diff || [];
+  changes = {};
+  diff.forEach((d) => (changes[d.moment] = d));
+  setState(res.state);
+  if (focusFeature) flashCard(focusFeature);
+  const shown = diff.filter((d) => pct(d.before) !== pct(d.after));
+  if (shown.length) toast(shown.slice(0, 3).map((d) => `${d.label} ${pct(d.before)} → ${pct(d.after)}`).join("  ·  "));
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(() => { changes = {}; renderMoments(); }, 7000);
+}
+
+// ---------- rendering ----------
+function render() { renderProfile(); renderChart(); renderMoments(); renderCards(); renderKate(); renderActivity(); renderActionCards(); renderFooter(); }
+
+function logo(id, sm) {
+  const s = SERVICES[id] || { color: "#5b6770", text: "#fff" };
+  if (s.logo) return `<span class="logo ${sm ? "sm" : ""}" style="background:#fff;border:1px solid var(--border)"><img src="${esc(s.logo)}" alt="${esc(s.name)}"></span>`;
+  return `<span class="logo ${sm ? "sm" : ""}" style="background:${esc(s.color)};color:${esc(s.text)}" aria-label="${esc(s.name || id)}">${esc(SHORT[id] || id)}</span>`;
+}
+
+function renderProfile() {
+  const p = S.profile;
+  $("#uidLabel").textContent = `customer #${p.user_id} · plate ${S.plate}`;
+  const emp = { employee: `employee at ${p.employer_name}`, self_employed: "self-employed", retired: "retired", student: "student" }[p.employment_type];
+  const home = p.owns_home ? "owns home" : p.renting ? "rents" : "lives with family";
+  const hh = `household of ${p.household_size}` + (p.n_children ? ` (${p.n_children} child${p.n_children > 1 ? "ren" : ""})` : "");
+  $("#profile").innerHTML = `<div class="who"><div class="avatar">${esc(p.first_name[0])}</div><div>
+    <div class="name">${esc(p.first_name)}, ${p.age}</div>
+    <div class="line">${esc([`${p.city} (${p.region})`, hh, emp, home, `customer for ${p.tenure_years} year${p.tenure_years === 1 ? "" : "s"}`].join(" · "))}</div></div></div>`;
+}
+
+function renderChart() {
+  const c = S.chart, W = 560, H = 160, padL = 44, padR = 8, padT = 10, padB = 22;
+  const vals = [...c.income, ...c.balance, 0];
+  let max = Math.max(...vals), min = Math.min(...vals);
+  const span = (max - min) || 1; max += span * 0.08; min -= span * 0.04;
+  const y = (v) => padT + (H - padT - padB) * (1 - (v - min) / (max - min));
+  const bw = (W - padL - padR) / 12, x = (i) => padL + bw * i + bw / 2;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly income and current-account balance, Oct 2025 to Sep 2026">`;
+  niceTicks(min, max, 4).forEach((t) => {
+    svg += `<line x1="${padL}" x2="${W - padR}" y1="${y(t)}" y2="${y(t)}" stroke="var(--border)"/><text x="${padL - 6}" y="${y(t) + 4}" text-anchor="end" font-size="10.5" fill="var(--faint)">${shortEur(t)}</text>`;
+  });
+  svg += `<line x1="${padL}" x2="${W - padR}" y1="${y(0)}" y2="${y(0)}" stroke="var(--border-strong)"/>`;
+  c.income.forEach((v, i) => { svg += `<rect x="${x(i) - bw * 0.32}" y="${y(Math.max(v, 0))}" width="${bw * 0.64}" height="${Math.max(Math.abs(y(0) - y(v)), 1)}" rx="3" fill="var(--accent-soft)" stroke="var(--accent)" stroke-opacity=".4"><title>${c.months[i]} income ${money(v)}</title></rect>`; });
+  svg += `<polyline points="${c.balance.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" fill="none" stroke="var(--text)" stroke-width="2" stroke-linejoin="round"/>`;
+  c.balance.forEach((v, i) => { svg += `<circle cx="${x(i)}" cy="${y(v)}" r="3.2" fill="${v < 0 ? "var(--neg)" : "var(--surface)"}" stroke="${v < 0 ? "var(--neg)" : "var(--text)"}" stroke-width="1.6"><title>${c.months[i]} balance ${money(v)}</title></circle>`; });
+  c.months.forEach((m, i) => { if (i % 2 === 0 || window.innerWidth > 900) svg += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="10.5" fill="var(--faint)">${m.slice(0, 3)}</text>`; });
+  $("#chart").innerHTML = svg + `</svg><div class="legend"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Income per month</span><span><i style="background:var(--text);height:2px;vertical-align:3px"></i>Current-account balance (month end)</span></div>`;
+}
+function niceTicks(min, max, n) {
+  const step0 = (max - min) / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= step0) || step0;
+  const out = []; for (let t = Math.ceil(min / step) * step; t <= max; t += step) out.push(Math.round(t)); return out;
+}
+function shortEur(v) { const a = Math.abs(v); const s = a >= 1000 ? `${+(a / 1000).toFixed(a >= 10000 ? 0 : 1)}k` : `${Math.round(a)}`; return (v < 0 ? "−" : "") + "€" + s; }
+
+function helpItem(it) {
+  let btn = "";
+  if (it.action) btn = `<button class="btn small" data-prep='${esc(JSON.stringify(it.action))}' data-say="${esc(it.say)}">${logo(it.action.service, true)} Prepare</button>`;
+  else if (it.kind === "info") btn = `<button class="btn small ghost" data-sim="Opens the article in KBC Mobile (simulated)">Read</button>`;
+  else if (it.kind === "product") btn = `<button class="btn small ghost" data-sim="Opens the ${esc(it.title)} flow in KBC Mobile (simulated)">Show</button>`;
+  else btn = `<button class="btn small ghost" data-sim="Books a call with an advisor (simulated)">Book a call</button>`;
+  const flag = it.deadline ? ` <span class="chan push">deadline</span>` : it.critical ? ` <span class="chan">time-critical</span>` : "";
+  return `<div class="it"><span class="kind ${it.kind}">${esc(it.kind_label)}</span><span class="t">${esc(it.title)}${flag}</span>${btn}</div>`;
+}
+
+function renderMoments() {
+  const J = Object.fromEntries((S.journeys || []).map((j) => [j.moment, j]));
+  $("#moments").innerHTML = S.predictions.map((p) => {
+    const ch = changes[p.moment], moved = ch && pct(ch.before) !== pct(ch.after);
+    const was = moved && ch.before != null ? `<span class="was">${pct(ch.before)}</span>` : "";
+    const tick = p.neighbour_rate != null ? `<div class="tick" style="left:${(p.neighbour_rate * 100).toFixed(1)}%" title="People like you: ${pct(p.neighbour_rate)}"></div>` : "";
+    const meta = p.not_predicted ? `<span>Never predicted: only you can tell us</span>`
+      : `<span>People like you <b class="num">${pct(p.neighbour_rate)}</b></span><span>Your cohort <b class="num">${pct(p.cohort_rate)}</b></span>` + (p.declared ? `<span>Model estimate <b class="num">${pct(p.model_probability)}</b></span>` : "");
+    const j = J[p.moment];
+    let journey = "";
+    if (j) {
+      const idx = j.stage ? j.stages.indexOf(j.stage) : -1;
+      const steps = j.stages.map((s, i) => `<span class="${i === idx ? "on" : i < idx ? "past" : ""}">${STAGE_LABEL[s]}</span>`).join("");
+      const open = openMoments.has(p.moment);
+      journey = `<div class="stepper">${steps}${j.stage ? `<button class="more" data-toggle="${p.moment}">${open ? "Hide help" : `Help now (${j.items.length})`}</button>` : `<span style="border:0;background:none">${esc(j.rule)}</span>`}</div>`;
+      if (open && j.stage) journey += `<div class="help"><div class="rule">Stage “${STAGE_LABEL[j.stage]}” because ${esc(j.rule)}.</div>${j.items.map(helpItem).join("") || `<div class="rule">Nothing to offer at this stage.</div>`}</div>`;
+    }
+    return `<div class="moment ${moved ? "changed" : ""}">
+      <div class="row"><div class="label">${esc(p.label)} ${p.declared ? `<span class="tag told">${esc(p.declared_label)}</span>` : ""}</div><div class="prob num">${was}${pct(p.probability)}</div></div>
+      <div class="bar"><div class="fill ${p.declared ? "told" : ""}" style="width:${(p.probability * 100).toFixed(1)}%"></div>${tick}</div>
+      <div class="meta">${meta}</div>${journey}</div>`;
+  }).join("");
+}
+$("#moments").addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-toggle]");
+  if (t) { const m = t.dataset.toggle; openMoments.has(m) ? openMoments.delete(m) : openMoments.add(m); renderMoments(); }
+});
+
+function fxChips(effects) {
+  if (!effects.length) return `<span class="fx down" style="opacity:.7">no noticeable effect</span>`;
+  return effects.slice(0, 4).map((e) => `<span class="fx ${e.pts >= 0 ? "up" : "down"}">${e.pts >= 0 ? "+" : "−"}${Math.abs(e.pts).toFixed(0)} pts ${esc(e.label.toLowerCase())}</span>`).join("");
+}
+function txList(txs) {
+  if (!txs || !txs.length) return "";
+  return `<ul class="tx">${txs.map((t) => { const [, m, d] = t.date.split("-"); return `<li><span class="num">${+d} ${MONTHS[+m - 1]}</span><span class="m">${esc(t.merchant)}</span><span class="a ${t.amount > 0 ? "in" : ""}">${t.amount > 0 ? "+" : ""}${money(t.amount)}</span></li>`; }).join("")}</ul>`;
+}
+
+function renderCards() {
+  const el = $("#cards");
+  if (!S.cards.length) { el.innerHTML = `<div class="empty">No assumptions to show.</div>`; return; }
+  el.innerHTML = S.cards.map((c) => {
+    const statusTag = c.status === "confirmed" ? `<span class="tag ok">✓ confirmed by you</span>` : c.status === "overridden" || c.status === "implied" ? `<span class="tag told">you told us</span>` : "";
+    const srcTag = c.status === "overridden" || c.status === "implied" ? "" : `<span class="tag src">${esc(c.source)}</span>`;
+    const was = c.original_display ? `<div class="was">We assumed: ${esc(c.original_display)}</div>` : "";
+    let actions;
+    if (editing === c.feature) actions = editor(c);
+    else {
+      const btns = [];
+      if (c.status !== "confirmed") btns.push(`<button class="btn small" data-act="confirm" data-f="${c.feature}">That's right</button>`);
+      if (c.editable && c.type === "bool") btns.push(`<button class="btn small" data-act="toggle" data-f="${c.feature}">Not true</button>`);
+      else if (c.editable) btns.push(`<button class="btn small" data-act="edit" data-f="${c.feature}">Edit</button>`);
+      if (!c.editable) btns.push(`<span class="note">${c.feature === "cohort" ? "Based on similar customers" : "From our own records: can't be edited"}</span>`);
+      actions = `<div class="actions">${btns.join("")}</div>`;
+    }
+    const err = cardErrors[c.feature] ? `<div class="err">${esc(cardErrors[c.feature])}</div>` : "";
+    return `<article class="card" data-card="${c.feature}"><div class="tags">${srcTag}${statusTag}</div>
+      <div class="sentence">${esc(c.sentence)}</div><div class="evidence">${esc(c.evidence.text)}</div>${txList(c.evidence.transactions)}${was}
+      <div class="effects">${fxChips(c.effects)}</div>${actions}${err}</article>`;
+  }).join("");
+}
+
+function editor(c) {
+  let input, unit = "";
+  if (c.type === "choice") input = `<select id="editVal">${c.options.map((o) => `<option value="${o}" ${o === c.value ? "selected" : ""}>${o.replace("_", "-")}</option>`).join("")}</select>`;
+  else {
+    let v = c.value, step = 1;
+    if (c.type === "ratio") { v = v == null ? "" : Math.round(v * 100); unit = "%"; }
+    else if (c.type === "amount") { v = v == null ? "" : Math.round(v); unit = c.unit || "€"; step = 10; }
+    else if (c.type === "months") unit = c.feature.includes("since") ? "months ago" : "months from now";
+    else if (c.type === "years") unit = "years";
+    input = `<input id="editVal" type="number" step="${step}" value="${v ?? ""}" ${c.nullable ? 'placeholder="empty = none"' : ""}>`;
+  }
+  return `<div class="edit">${input}<span class="unit">${esc(unit)}</span><button class="btn small primary" data-act="save" data-f="${c.feature}">Save</button><button class="btn small ghost" data-act="cancel">Cancel</button></div>`;
+}
+
+function renderKate() {
+  const k = S.kate;
+  $("#kateAside").textContent = `${k.quarter} · budget: ${k.budget} proactive messages (1 a month) · ${k.candidates} candidate help items` + (k.over_budget ? ` · ${k.over_budget} time-critical over budget` : "");
+  $("#convs").innerHTML = k.passed.length ? k.passed.map((c) => {
+    const others = c.items.slice(1);
+    const act = c.items.find((i) => i.action);
+    return `<div class="conv"><div class="top"><b>${esc(c.month)}</b><span class="chan ${c.channel === "push" ? "push" : ""}">${c.channel === "push" ? "Push notification" : "In-app Kate card"}</span><span>${esc(c.label)} · ${STAGE_LABEL[c.stage] || ""}</span></div>
+      <div class="say">${esc(c.lead.say)}</div>
+      ${others.length ? `<ul>${others.map((i) => `<li>${esc(i.title)}</li>`).join("")}</ul>` : ""}
+      <div class="why">${esc(c.why)}</div>
+      <div class="row">${act ? `<button class="btn small primary" data-prep='${esc(JSON.stringify(act.action))}' data-say="${esc(act.say)}">${logo(act.action.service, true)} Prepare</button>` : ""}
+      <button class="btn small" data-open="${c.moment}">Open in chat</button><button class="btn small ghost" data-ignore="${c.moment}" title="Pause this topic for 60 days">Not now</button></div></div>`;
+  }).join("") : `<div class="empty">Nothing worth interrupting ${esc(S.profile.first_name)} for this quarter.</div>`;
+  $("#held").innerHTML = k.held.length ? k.held.map((h) => { const [cls, lbl] = REASON[h.reason] || ["stage", h.reason];
+    return `<li><span class="reason ${cls}">${lbl}</span><span>${esc(h.title)}</span><span class="why">${esc(h.detail)}</span></li>`; }).join("") : `<li><span></span><span class="why">Nothing held back.</span></li>`;
+}
+
+async function renderScale() {
+  try {
+    const s = await api("/api/scale");
+    const max = Math.max(s.without_mean, 1);
+    $("#scale").innerHTML = `<h3>At scale · ${s.customers.toLocaleString("en-GB")} customers</h3>
+      <div class="big num">${s.without_mean} → ${s.with_mean}</div><div class="b">proactive messages per customer per year (−${Math.round(s.reduction * 100)}%)</div>
+      <div class="bars"><div class="b">Without orchestrator · p90 ${s.without_p90}<div class="track"><i style="width:100%"></i></div></div>
+      <div class="b">With orchestrator · p90 ${s.with_p90}<div class="track"><i class="with" style="width:${(s.with_mean / max * 100).toFixed(0)}%"></i></div></div></div>
+      <small>${Math.round(s.reached_share * 100)}% hear from Kate each quarter · ${s.push_mean} push notifications per customer per year. ${esc(s.note)}</small>`;
+  } catch (e) { $("#scale").innerHTML = `<h3>At scale</h3><div class="empty">${esc(e.message)}</div>`; }
+}
+
+function resultHTML(r) {
+  const rows = [];
+  const add = (k, v) => v != null && v !== "" && rows.push(`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`);
+  let extra = "", side = "";
+  switch (r.kind) {
+    case "ticket": add("Ticket", r.what); add("Valid", r.valid); add("Price", r.price); side = `<div class="qr">${r.qr_svg}<small>QR placeholder</small></div>`; break;
+    case "parking_session": add("City", r.city); add("Zone", r.zone); add("Plate", r.plate); add("Until", r.ends); add("Estimate", r.estimate); if (r.stopped) add("Status", "Stopped"); break;
+    case "registered_email": add("To", r.recipient); add("Subject", r.subject); add("Status", r.status); add("Sent", r.sent_at); extra = `<div class="note">“${esc(r.preview)}”</div>`; break;
+    case "comparison": {
+      const mx = Math.max(r.owning_monthly, r.cambio_monthly);
+      extra = `<div class="cmp"><div>Cambio ≈ €${r.cambio_monthly}/month<div class="track"><i style="width:${r.cambio_monthly / mx * 100}%"></i></div></div><div>Owning a small car ≈ €${r.owning_monthly}/month<div class="track"><i class="own" style="width:${r.owning_monthly / mx * 100}%"></i></div></div><div>${esc(r.recommendation)}</div></div>`; break; }
+    case "estimate": add("Estimate", `€${r.value.toLocaleString("en-GB")}`); add("Range", `€${r.low.toLocaleString("en-GB")} – €${r.high.toLocaleString("en-GB")}`); break;
+    case "checklist": add("Premiums", r.premium); extra = `<ul class="tx">${r.items.map((i) => `<li style="grid-template-columns:1fr"><span class="m">☐ ${esc(i)}</span></li>`).join("")}</ul>`; break;
+    case "invoice_list": add("Total overdue", money(r.total)); extra = `<ul class="tx">${r.invoices.map((i) => `<li><span class="num">${i.days_overdue}d</span><span class="m">${esc(i.client)} · ${esc(i.number)}</span><span class="a">${money(i.amount)}</span></li>`).join("")}</ul>`; break;
+    case "articles": extra = `<ul class="tx">${r.articles.map((a) => `<li style="grid-template-columns:1fr auto"><span class="m">${esc(a.title)}</span><span>${a.minutes} min</span></li>`).join("")}</ul>`; break;
+    case "lease_status": add("Car", r.car); add("Contract end", r.contract_end); add("Mileage", r.km); break;
+    default: add("What", r.what); add("Status", r.status); add("Fee", r.fee); add("Price", r.price); add("Unlock code", r.unlock_code);
+  }
+  add("Reference", r.reference);
+  return `<div class="res"><dl>${rows.join("")}</dl>${side}${extra}</div>`;
+}
+
+function actionCardHTML(a) {
+  const head = `<div class="h">${logo(a.service)}<div class="t">${esc(a.status === "done" ? a.result.title : a.action_name)}<small>${esc(a.service_name)}${a.status === "done" ? " · " + esc(a.result.created_at) : ""}</small></div><span class="sim">simulated</span></div>`;
+  if (a.status === "done") return `<div class="acard done" data-card-id="${a.id}">${head}${resultHTML(a.result)}</div>`;
+  if (a.status === "cancelled") return `<div class="acard cancelled" data-card-id="${a.id}">${head}<div class="note">Cancelled, nothing was sent or paid.</div></div>`;
+  const flags = [a.costs_money ? `costs money${a.price_text ? ": " + esc(a.price_text) : ""}` : "", a.sends ? "sends something on your behalf" : ""].filter(Boolean);
+  return `<div class="acard" data-card-id="${a.id}">${head}<div class="sum">${esc(a.summary)}</div>
+    ${flags.length ? `<div class="flags">${flags.map((f) => `<span>${f}</span>`).join("")}</div>` : ""}
+    <div class="row"><button class="btn small primary" data-confirm="${a.id}">${esc(a.button)}</button><button class="btn small ghost" data-cancel="${a.id}">Cancel</button></div>
+    <div class="note">Prepared by Kate. Nothing happens until you tap.</div></div>`;
+}
+
+function renderActionCards() {
+  const byId = Object.fromEntries((S.actions || []).map((a) => [a.id, a]));
+  document.querySelectorAll("#msgs [data-card-id]").forEach((el) => { const a = byId[el.dataset.cardId]; if (a) el.outerHTML = actionCardHTML(a); });
+}
+function renderActivity() {
+  const done = (S.actions || []).filter((a) => a.status === "done");
+  $("#activity").innerHTML = done.length ? done.map(actionCardHTML).join("") : `<div class="empty">Nothing yet. Tickets, parking sessions and letters you confirm appear here.</div>`;
+}
+
+async function renderServices() {
+  try {
+    const r = await api("/api/services");
+    SERVICES = Object.fromEntries(r.services.map((s) => [s.id, s]));
+    $("#services").innerHTML = r.services.map((s) => `<div class="svc" title="${esc(s.description)}">${logo(s.id)}<div><div class="nm">${esc(s.name)}</div><div class="sg">${s.signals.length ? "signal: " + esc(s.signals.join(", ").replaceAll("_", " ")) : "no signal"}</div></div></div>`).join("")
+      + r.not_used.map((s) => `<div class="svc" title="Never used as a signal"><span class="logo" style="background:var(--surface);color:var(--faint);border:1px dashed var(--border-strong)">✕</span><div><div class="nm">${esc(s.name)}</div><div class="sg">never used: ${esc(s.what)}</div></div></div>`).join("");
+    if (S) render();
+  } catch (e) {}
+}
+
+function renderFooter() {
+  $("#notUsed").innerHTML = S.signals_not_used.map((s) => `<li>${esc(s)}</li>`).join("");
+  if (meta) $("#modelInfo").innerHTML = `${meta.n_customers.toLocaleString("en-GB")} synthetic customers · LightGBM per moment · AUC ` + Object.entries(meta.auc).map(([k, v]) => `${k.replace("_", " ")} ${v.toFixed(2)}`).join(" · ");
+}
+
+function flashCard(feature) { const el = document.querySelector(`[data-card="${feature}"]`); if (!el) return; el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1800); }
+let toastTimer;
+function toast(text) { const t = $("#toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 4200); }
+
+// ---------- global clicks: prepare / confirm / cancel / ignore / simulated links ----------
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-prep],[data-confirm],[data-cancel],[data-ignore],[data-open],[data-sim]");
+  if (!b || !S) return;
+  try {
+    if (b.dataset.prep) {
+      const a = JSON.parse(b.dataset.prep);
+      const res = await api(`/api/users/${S.user_id}/actions`, { service: a.service, action: a.action, params: a.params || {} });
+      setState(res.state);
+      addMsg("bot", b.dataset.say || "Here it is, ready when you are.", null, [res.card]);
+    } else if (b.dataset.confirm) {
+      b.disabled = true;
+      const res = await api(`/api/users/${S.user_id}/actions/${b.dataset.confirm}/confirm`, {});
+      applyResult(res);
+      toast(`✓ ${res.card.result.title} (simulated)`);
+    } else if (b.dataset.cancel) {
+      setState((await api(`/api/users/${S.user_id}/actions/${b.dataset.cancel}/cancel`, {})).state);
+    } else if (b.dataset.ignore) {
+      setState((await api(`/api/users/${S.user_id}/ignore`, { moment: b.dataset.ignore })).state);
+      toast("OK, Kate won't bring this up for 60 days");
+    } else if (b.dataset.open) {
+      const c = S.kate.passed.find((x) => x.moment === b.dataset.open);
+      if (c) addMsg("bot", c.lead.say + (c.items.length > 1 ? "\n\nAlso: " + c.items.slice(1).map((i) => i.title).join(" · ") : ""));
+    } else if (b.dataset.sim) toast(b.dataset.sim);
+  } catch (e) { toast(e.message); b.disabled = false; }
+});
+
+// ---------- assumption card actions ----------
+$("#cards").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-act]");
+  if (!b) return;
+  const f = b.dataset.f, act = b.dataset.act, card = S.cards.find((c) => c.feature === f);
+  delete cardErrors[f];
+  try {
+    if (act === "confirm") applyResult(await api(`/api/users/${S.user_id}/confirm`, { feature: f }), f);
+    else if (act === "toggle") applyResult(await api(`/api/users/${S.user_id}/override`, { feature: f, value: !card.value }), f);
+    else if (act === "edit") { editing = f; renderCards(); const i = $("#editVal"); i && i.focus(); }
+    else if (act === "cancel") { editing = null; renderCards(); }
+    else if (act === "save") await saveEdit(card);
+  } catch (e) { cardErrors[f] = e.message; renderCards(); }
+});
+$("#cards").addEventListener("keydown", (ev) => {
+  if (ev.target.id === "editVal" && ev.key === "Enter") { ev.preventDefault(); document.querySelector('button[data-act="save"]').click(); }
+  if (ev.target.id === "editVal" && ev.key === "Escape") { editing = null; renderCards(); }
+});
+async function saveEdit(c) {
+  const raw = $("#editVal").value;
+  let value = raw;
+  if (c.type !== "choice") value = raw === "" ? null : c.type === "ratio" ? Number(raw) / 100 : Number(raw);
+  const res = await api(`/api/users/${S.user_id}/override`, { feature: c.feature, value });
+  editing = null;
+  applyResult(res, c.feature);
+}
+
+// ---------- declare ----------
+function fillMonths() {
+  const ev = $("#declEvent").value;
+  $("#declMonth").innerHTML = OUT_MONTHS.map((m, i) => `<option value="${m.v}" ${i === 5 ? "selected" : ""}>${m.l}</option>`).join("") + (ev === "birth" ? "" : `<option value="none">Not planned</option>`);
+}
+$("#declEvent").onchange = fillMonths;
+$("#declBtn").onclick = async () => { try { applyResult(await api(`/api/users/${S.user_id}/declare`, { event: $("#declEvent").value, month: $("#declMonth").value })); } catch (e) { toast(e.message); } };
+
+// ---------- chat ----------
+function addMsg(role, text, actions, cards) {
+  const d = document.createElement("div");
+  d.className = `msg ${role}`;
+  d.textContent = text;
+  if (actions && actions.length) {
+    const a = document.createElement("div");
+    a.className = "acts";
+    actions.forEach((x) => {
+      const s = document.createElement("span");
+      const inp = x.input || {};
+      const what = { update_feature: `edit ${inp.feature}`, declare_life_event: `declare ${inp.event}`, confirm_assumption: `confirm ${inp.feature}`,
+        prepare_service_action: `prepare ${inp.service} · ${inp.action}`, get_journey: `journey ${inp.moment}`, list_services: "list services", get_state: "read state" }[x.tool] || x.tool;
+      s.textContent = (x.ok ? "✓ " : "✗ ") + what;
+      if (!x.ok) { s.className = "bad"; s.title = x.error || ""; }
+      a.appendChild(s);
+    });
+    d.appendChild(a);
+  }
+  $("#msgs").appendChild(d);
+  (cards || []).forEach((c) => { const w = document.createElement("div"); w.innerHTML = actionCardHTML(c); $("#msgs").appendChild(w.firstElementChild); });
+  $("#msgs").scrollTop = $("#msgs").scrollHeight;
+  return d;
+}
+
+const SUGGESTIONS = {
+  diy: { en: "The DIY purchases were for my parents' house", nl: "De aankopen bij Gamma waren voor het huis van mijn ouders", fr: "Les achats de bricolage étaient pour la maison de mes parents" },
+  vol: { en: "I have a permanent contract now, my income is stable", nl: "Ik heb nu een vast contract, mijn inkomen is stabiel", fr: "J'ai maintenant un CDI, mon revenu est stable" },
+  td: { en: "I'll invest my term deposit when it matures in November", nl: "Ik wil mijn termijnrekening in november beleggen", fr: "Je veux réinvestir mon dépôt à terme en novembre" },
+  nocar: { en: "I don't need a car", nl: "Ik heb geen auto nodig", fr: "Je n'ai plus besoin de voiture" },
+  park: { en: "Park in {city} for 2 hours", nl: "Parkeren in {city} voor 2 uur", fr: "Me garer à {city} pour 2 heures" },
+  train: { en: "Train ticket to Brussels tomorrow", nl: "Treinticket naar Brussel morgen", fr: "Un billet de train pour Bruxelles demain" },
+  move: { en: "We're moving in December", nl: "We verhuizen in december", fr: "Nous déménageons en décembre" },
+  billit: { en: "Send reminders for my overdue invoices", nl: "Stuur herinneringen voor mijn openstaande facturen", fr: "Envoyez des rappels pour mes factures impayées" },
+};
+function renderSuggestions() {
+  const f = new Set(S.cards.map((c) => c.feature));
+  const J = Object.fromEntries(S.journeys.map((j) => [j.moment, j]));
+  const lang = { Flanders: "nl", Wallonia: "fr" }[S.profile.region] || "en";
+  const keys = [];
+  if (f.has("diy_building_spend_3m")) keys.push("diy");
+  if (f.has("income_volatility")) keys.push("vol");
+  if (f.has("term_deposit_maturity_months")) keys.push("td");
+  if (J.buy_car.stage) keys.push("nocar");
+  if (J.move_house.stage) keys.push("move");
+  keys.push("park", "train");
+  $("#suggest").innerHTML = keys.slice(0, 3).map((k) => `<button type="button">${esc(SUGGESTIONS[k][lang].replace("{city}", S.profile.city))}</button>`).join("");
+}
+$("#suggest").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) { $("#input").value = b.textContent; send(); } });
+
+let sending = false;
+async function send() {
+  const text = $("#input").value.trim();
+  if (!text || sending || !S) return;
+  sending = true; $("#sendBtn").disabled = true; $("#input").value = "";
+  addMsg("user", text);
+  const typing = addMsg("bot", "…"); typing.classList.add("typing");
+  try {
+    const res = await api("/api/chat", { user_id: S.user_id, message: text, history: chatHistory });
+    typing.remove();
+    chatHistory.push({ role: "user", content: text }, { role: "assistant", content: res.reply });
+    const f = (res.actions || []).find((a) => a.ok && a.input && a.input.feature && a.tool === "update_feature");
+    applyResult(res, f && f.input.feature);
+    addMsg("bot", res.reply + (res.notice ? `\n\n(${res.notice})` : ""), res.actions, res.prepared);
+    renderSuggestions();
+  } catch (e) { typing.remove(); addMsg("bot", `Sorry, something went wrong: ${e.message}`); }
+  finally { sending = false; $("#sendBtn").disabled = false; $("#input").focus(); }
+}
+$("#composer").onsubmit = (e) => { e.preventDefault(); send(); };
+$("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+
+// ---------- top bar ----------
+$("#randomBtn").onclick = () => loadUser().catch((e) => toast(e.message));
+$("#resetBtn").onclick = async () => { if (!S) return; try { applyResult(await api(`/api/users/${S.user_id}/reset`, {})); $("#msgs").innerHTML = ""; toast("All corrections and actions for this customer were undone"); } catch (e) { toast(e.message); } };
+window.addEventListener("hashchange", () => { const uid = parseInt(location.hash.slice(1), 10); if (Number.isFinite(uid) && (!S || S.user_id !== uid)) loadUser(uid).catch((e) => toast(e.message)); });
+
+async function init() {
+  fillMonths();
+  try { meta = await api("/api/meta"); } catch (e) {}
+  if (meta) {
+    const t = $("#modeTag");
+    t.textContent = meta.chat_mode === "claude" ? `Claude · ${meta.model}` : "offline parser";
+    t.title = meta.chat_mode === "claude" ? "Kate answers with Claude and tool use" : "No ANTHROPIC_API_KEY set: a small rule-based parser answers";
+    if (meta.chat_mode === "claude") t.classList.add("told");
+  }
+  await renderServices();
+  const fromHash = parseInt(location.hash.slice(1), 10);
+  await loadUser(Number.isFinite(fromHash) ? fromHash : null).catch(() => loadUser());
+  renderScale();
+  try {
+    const sc = await api("/api/users/showcase");
+    const picker = $("#picker"), reset = $("#resetBtn");
+    sc.forEach((u) => {
+      const b = document.createElement("button");
+      b.className = "btn small"; b.dataset.uid = u.user_id; b.textContent = u.label;
+      b.setAttribute("aria-label", `${u.label}: ${u.first_name}, ${u.age}`);
+      b.onclick = () => loadUser(u.user_id).catch((e) => toast(e.message));
+      b.classList.toggle("active", S && S.user_id === u.user_id);
+      picker.insertBefore(b, reset);
+    });
+  } catch (e) {}
+}
+init();
+</script>
+</body>
+</html>

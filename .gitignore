@@ -15,3 +15,6 @@ next-env.d.ts
 test-results/
 playwright-report/
 .env*
+
+# Engine build output
+engine/app/_native/

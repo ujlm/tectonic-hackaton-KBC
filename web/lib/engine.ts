@@ -23,7 +23,7 @@ export async function enginePost<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-function engineHeaders(): Record<string, string> {
+export function engineHeaders(): Record<string, string> {
   const token = process.env.ENGINE_TOKEN;
   return token ? { "x-engine-token": token } : {};
 }

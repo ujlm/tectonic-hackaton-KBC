@@ -4,13 +4,14 @@
     {
       "name": "engine",
       "runtimeExecutable": ".venv/bin/python",
-      "runtimeArgs": ["-m", "uvicorn", "app.server:app", "--port", "8000", "--app-dir", "engine"],
-      "port": 8000
+      "runtimeArgs": ["-m", "uvicorn", "app.server:app", "--port", "8001", "--app-dir", "engine"],
+      "port": 8001,
+      "autoPort": false
     },
     {
       "name": "web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "web", "run", "dev"],
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": ["ENGINE_URL=http://127.0.0.1:8001/", "node", "web/node_modules/next/dist/bin/next", "dev", "web", "--port", "3000"],
       "port": 3000
     }
   ]

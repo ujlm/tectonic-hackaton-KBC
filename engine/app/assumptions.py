@@ -143,7 +143,7 @@ CATALOGUE = {
     "registered_email_to_landlord_90d": dict(label="You sent {value} registered e-mail(s) to your landlord in the last 3 months",
                                              label_zero="You sent no registered e-mails to your landlord recently",
                                              evidence="Registered e-mail in KBC Mobile: we only see that the recipient is your landlord, never the content",
-                                             editable=False, type="count", source=SVC),
+                                             editable=True, type="count", min=0, max=10, source=SVC),
     "service_vouchers_monthly": dict(label="You order about {value} service vouchers a month", label_zero="You don't order service vouchers",
                                      evidence="Service voucher orders in KBC Mobile", editable=False, type="count", source=SVC),
     "billit_overdue_invoices": dict(label="{value} of your invoices in Billit are overdue", label_zero="None of your Billit invoices are overdue",

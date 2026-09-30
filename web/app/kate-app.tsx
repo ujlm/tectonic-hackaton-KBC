@@ -12,7 +12,7 @@ type Tab = "home" | "picture" | "kate";
 type HelpAction = { service: string; action: string; params: Record<string, unknown> };
 type HelpItem = { id: string; kind: string; title: string; say: string; action: HelpAction | null };
 type Conv = { moment: string; stage: string; lead: HelpItem; items: HelpItem[] };
-type Journey = { moment: string; label_local: string; stage: string | null; stage_label: string; rule: string };
+type Journey = { moment: string; label_local: string; stage: string | null; stage_label: string; rule: string; rule_local?: string };
 type Pred = {
   moment: string; label_local: string; probability: number; neighbour_rate: number | null;
   declared: boolean; declared_label: string | null;
@@ -104,13 +104,13 @@ const LOCALE: Record<Lang, string> = { nl: "nl-BE", fr: "fr-BE", en: "en-GB" };
  * engine's outlook; nothing here is a number.
  */
 const STARTERS = {
-  en: { move: "We're moving in {month}", invest: "I want to start investing in {month}", stable: "My income is stable now",
+  en: { move: "We're moving in {month}", invest: "I want to start investing in {month}",
         diy: "The DIY purchases were for my parents", noCar: "I don't need a car", train: "Train ticket to {city} tomorrow",
         pass: "Commuter pass to {city}" },
-  nl: { move: "We verhuizen in {month}", invest: "Ik wil beginnen met beleggen in {month}", stable: "Mijn inkomen is nu stabiel",
+  nl: { move: "We verhuizen in {month}", invest: "Ik wil beginnen met beleggen in {month}",
         diy: "De doe-het-zelfaankopen waren voor mijn ouders", noCar: "Ik heb geen auto nodig", train: "Treinticket naar {city} morgen",
         pass: "Abonnement naar {city}" },
-  fr: { move: "Nous déménageons en {month}", invest: "Je veux commencer à investir en {month}", stable: "Mon revenu est stable maintenant",
+  fr: { move: "Nous déménageons en {month}", invest: "Je veux commencer à investir en {month}",
         diy: "Les achats de bricolage étaient pour mes parents", noCar: "Je n'ai plus besoin de voiture",
         train: "Un billet de train pour {city} demain", pass: "Un abonnement pour {city}" },
 } as const;
@@ -127,7 +127,6 @@ function startersFor(st: State, lang: Lang): string[] {
     if (!staged.has(m)) continue;
     if (m === "move_house" && month) out.push(fill(s.move, { month }));
     if (m === "start_investing" && month) out.push(fill(s.invest, { month }));
-    if (m === "cash_squeeze" && st.profile.employment_type === "self_employed") out.push(s.stable);
     if (m === "renovation") out.push(s.diy);
     if (m === "buy_car") out.push(s.noCar);
   }
@@ -221,6 +220,13 @@ export function traceLine(tr: Trace): string {
   return `${who}${calls.length ? ` · ${calls[0].model} · ${calls.length} call(s) · ${tokens} tokens · $${cost.toFixed(4)}` : ""}${g}${tr.reason ? ` · ${tr.reason}` : ""} · ${tr.ms} ms`;
 }
 
+/** The value to prefill when correcting: whole euros for amounts, two decimals for ratios. */
+function editValue(c: Card): string {
+  if (c.value === null || c.value === undefined) return "";
+  if (typeof c.value !== "number") return String(c.value);
+  return c.type === "ratio" ? String(Math.round(c.value * 100) / 100) : String(Math.round(c.value));
+}
+
 type PictureProps = {
   c: Card; t: (typeof T)[Lang]; detail: Detail; lang: Lang; busy: boolean;
   op: (name: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -228,7 +234,7 @@ type PictureProps = {
 
 function PictureCard({ c, t, detail, lang, busy, op }: PictureProps) {
   const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(c.value === null || c.value === undefined ? "" : String(c.value));
+  const [val, setVal] = useState(editValue(c));
   const isBool = c.type === "bool";
   // Activity counts ("you sent 1 registered e-mail") are either right or not; profile counts get a new value.
   const activity = c.type === "count" && ["services", "app"].includes(c.source_key);
@@ -329,8 +335,8 @@ export default function KateApp() {
       .then((list) => {
         setShowcase(list);
         if (list[0]) {
-          setLang(langForRegion(list.find((s) => s.key === "landlord_email")?.region ?? list[0].region));
-          setUid((list.find((s) => s.key === "landlord_email") ?? list[0]).user_id);
+          setLang(langForRegion(list.find((s) => s.key === "billit_overdue")?.region ?? list[0].region));
+          setUid((list.find((s) => s.key === "billit_overdue") ?? list[0]).user_id);
         }
       })
       .catch(() => setError("down"));
@@ -405,7 +411,11 @@ export default function KateApp() {
       const r = await api<{ state: State; session: unknown; result: unknown }>("op", {
         user_id: uid, session: readSession(uid), lang, op: name, args,
       });
-      if (name === "reset") dropSession(uid);
+      if (name === "reset") {
+        dropSession(uid);
+        setMsgs([]);
+        setShowMore(false);
+      }
       writeSession(uid, r.session);
       setSt(r.state);
       if (["confirm", "override", "declare", "confirm_action", "reset"].includes(name)) {
@@ -557,7 +567,7 @@ export default function KateApp() {
                       {p.neighbour_rate !== null ? <b style={{ left: `${Math.round(p.neighbour_rate * 100)}%` }} /> : null}
                     </div>
                     {p.neighbour_rate !== null ? <p className="sub">{t.tick} · {pct(p.neighbour_rate, lang)}</p> : null}
-                    <p className="sub">{t.whyStage}{jj.rule}</p>
+                    <p className="sub">{t.whyStage}{jj.rule_local ?? jj.rule}</p>
                   </>
                 )}
               </div>

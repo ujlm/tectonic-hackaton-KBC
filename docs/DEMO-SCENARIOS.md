@@ -22,9 +22,13 @@ here come from a clean take in this order.
 1. Start `engine` (port 8001) and `web` (port 3000) from `.claude/launch.json`, then open http://localhost:3000.
 2. Clear old sessions: DevTools → Application → Local Storage → `localhost:3000` → delete the `kate.session.v1.*` keys,
    then reload. Alternatively, select each customer you will use and press **Reset**.
-3. On load, **Joris is already selected**, in NL, Simple, with Spec off. Don't click his button (see *Avoid on camera*).
+3. On load, **Ruben is already selected**, in NL, Simple, with Spec off and **LLM on**.
 4. Paste chat lines from this file so the apostrophes stay straight.
-5. Record scenario 4 before 22:00 local time (see the parking-clock note).
+5. **About Kaat's wording:** with **LLM on**, Gemini writes each reply, so the sentences vary a little between takes.
+   The numbers stay the same: they come from the engine and are checked before anything is shown. The quotes below are
+   from the deterministic path. For word-for-word identical takes, switch **LLM off** in the demo bar.
+6. A reply with LLM on takes about 2–4 s for a question and about 5 s for a correction. Kaat shows typing dots
+   meanwhile.
 
 ## Opening (30 s)
 
@@ -39,7 +43,7 @@ until you tap."
 
 **Joris · EN · Simple · Spec off**
 
-1. **Do:** click **EN**.
+1. **Do:** click **Renter moving out · Joris**, then **EN**.
    **See:** "Good evening, Joris". The navy card shows "Kaat · Moving house · Doing" and *"Moving soon? Here's how to
    register at your new address (within 8 working days) and update it in KBC Mobile."* with **Show me** / **Why?** /
    **Not now**. Under *Your moments*: Moving house shows "For you: about 7 in 10" and "about 1 in 10 people like you";
@@ -106,11 +110,11 @@ Starting to invest went from 49% to 53%. Moving house went from 1% to 2%."*
 1. **Do:** click **Simple**, then **Self-employed, unpaid invoices · Ruben**.
    **See:** the hero shows "Kaat · A tight month · Forecast".
 2. **Do:** tap the **Kaat** orb.
-   **See:** *"Your balance may dip below zero in the coming months. Want to set aside a small buffer on payday? It tops
+   **See:** *"Money may get tight in the coming months. Want to set aside a small buffer on payday? It tops
    up your account automatically if it would go below zero."* Below it is a sparkline titled "Your balance, the
    coming months" with Dec marked in red, and *"Your tightest month looks like December 2026: your balance could dip to
-   about −€1,610."* Then the quick replies **Yes, show me** / **Why?** / **Not now**, and the starter chips "My income
-   is stable now", "I want to start investing in January" and "Train ticket to Brussels tomorrow".
+   about −€1,610."* Then the quick replies **Yes, show me** / **Why?** / **Not now**, and the starter chips
+   "I want to start investing in January" and "Train ticket to Brussels tomorrow".
    **Say:** "The Kaat tab opens with a message built for Ruben. His balance could dip to minus 1,610 euros in
    December."
 3. **Do:** click **{ } Spec** and expand the line under the message.
@@ -154,7 +158,7 @@ Starting to invest went from 49% to 53%. Moving house went from 1% to 2%."*
 2. **Do:** type `We verhuizen in december naar Leuven`
    **See:** *"Genoteerd: Verhuizen in december 2026. Verhuizen ging van 71% naar 95%. Omdat je huurt, heb ik ook de
    aangetekende e-mail aan je verhuurder klaargezet. Ik heb dit voor je klaargezet: Stuur de aangetekende e-mail 'Opzeg
-   van het huurcontract' naar Your landlord (verhuis op 1 dec 2026). Er gebeurt niets tot je op “Aangetekende e-mail
+   van het huurcontract' naar je verhuurder (verhuis op 1 dec 2026). Er gebeurt niets tot je op “Aangetekende e-mail
    versturen · € 4,95” tikt."* A card follows, with "Hiermee wordt iets verstuurd in jouw naam." The toast reads
    "Verhuizen: nu waarschijnlijker".
    **Say:** "Joris gives Kaat the month in his own words. Moving goes to 95 percent, and because he rents, Kaat
@@ -250,27 +254,19 @@ year).
 
 - [ ] **Reset** acts only on the selected customer. It clears corrections, declared plans, prepared and confirmed
       actions, and "Not now" pauses, and it shows a toast.
-- [ ] Reset does **not** clear the chat bubbles. To restart the Kaat tab, toggle **Simple/Detailed** or the language,
-      or switch to another customer and back.
+- [ ] Reset also clears the chat: the Kaat tab starts again with a fresh opener. Switching **Simple/Detailed** or
+      the language restarts the Kaat tab too.
 - [ ] A language button stays selected for every customer until you click another one.
 - [ ] Put the demo bar back as each scenario needs it: **Spec** on only for scenario 3, and **Detailed** only in
       scenario 2.
 - [ ] For a full clean start, clear the `kate.session.v1.*` keys in local storage and reload.
 
-## Avoid on camera (seen while verifying)
+## Avoid on camera
 
-- **Clicking the customer who is already selected** hangs on "Loading…", because the state isn't fetched again. Joris
-  is selected on page load. To recover, click another language and then back.
-- **Ruben's chip "My income is stable now"** makes his tight month *more* likely (41% → 43%). Don't tap it.
-- **Élise's opener** says her balance "may dip below zero", but her sparkline never drops below zero (its lowest point
-  is about €1,020 in October). Don't linger on it.
-- **After a buffer is started,** the Home card still offers to start one.
-- **Untranslated text:** the registered-e-mail card reads "…naar Your landlord" in NL (and "Your landlord" in FR).
-  The "Registered e-mail" service name and the Detailed "Why this stage" rule are English in every language.
-- **Parking times** come from the computer's clock, and the date doesn't roll over. A 2-hour session started after
-  22:00 shows an end time such as "tot 00:04" on the same date.
-- **The Change field** is pre-filled with a raw number (4708.72998046875). Select all before you type `0`.
-- **Curly apostrophes** (don’t) break the "don't need a car" rule. The scripted line has no apostrophe.
+- **Curly apostrophes** (don’t) break the "don't need a car" rule when LLM is off. The scripted line has no apostrophe.
+- The **"Registered e-mail"** service name stays in English in every language (it's the service's name).
+- With LLM on, the first reply after a cold start can take a few seconds longer. Do one warm-up message before
+  recording.
 
 ## Known limits (say so if asked)
 

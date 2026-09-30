@@ -629,6 +629,10 @@ class Engine:
             outlook = forecast.project(b["monthly"], v, probs["cash_squeeze"], s["plans"].get("buffer_monthly"), lang)
             svc_ctx["suggested_buffer"] = outlook["suggested_buffer"]
             js = journeys.build(v, probs, s["declared"], prof, svc_ctx, lang)
+            if s["plans"].get("buffer_monthly"):  # a buffer is running: don't offer to start one
+                for j in js:
+                    j["items"] = [it for it in j["items"] if it["id"] != "cash_set_aside"]
+                    j["next_items"] = [it for it in j["next_items"] if it["id"] != "cash_set_aside"]
             ctx = self._context(uid, v, [], lang)
             rejected = [f for f in list(s["overrides"]) + list(s["implied"]) if f in CATALOGUE]
             baseline = None

@@ -220,7 +220,7 @@ HELP_ITEMS = [
 
     # --- Cash squeeze ---
     Help("cash_squeeze", "forecast", "service", "cash_set_aside", "Automatic buffer on payday",
-         "Your balance may dip below zero in the coming months. Want to set aside a small buffer on payday? It tops up "
+         "Money may get tight in the coming months. Want to set aside a small buffer on payday? It tops up "
          "your account automatically if it would go below zero.",
          action=("buffer", "start", {}), depends=("min_balance_12m", "income_volatility"), critical=_dip),
     Help("cash_squeeze", "forecast", "service", "cash_billit_reminder", "Send reminders for {overdue_n} overdue invoice(s)",
@@ -325,7 +325,9 @@ def build(values: dict, probs: dict, declared: dict, profile: dict, svc_ctx: dic
                 "deadline": h.deadline(x) if h.deadline else None, "critical": h.critical(x) if h.critical else None,
             } for h in chosen]
 
+        rule_key = (m, stage) if stage else ("not_planned" if x.not_planned(m) else "no_signals")
         out.append({
+            "rule_local": i18n.journeys.RULES.get(lang, {}).get(rule_key, rule),
             "moment": m, "label": MOMENT_LABELS[m], "label_local": i18n.ui.MOMENTS[lang][m], "stage": stage,
             "stage_label": i18n.ui.STAGES[lang].get(stage, "") if stage else "", "stages": stages, "rule": rule,
             "probability": probs[m], "items": items_for(stage) if stage else [],

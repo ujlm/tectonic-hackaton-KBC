@@ -99,8 +99,10 @@ def context(uid: int, profile: dict, values: dict, session: dict) -> dict:
         "new_city": new_city or city, "work_city": city, "plate": plate_for(uid),
         "bike_provider": "Velo Antwerpen" if city == "Antwerpen" else "Mobit" if city in MOBIT_CITIES else "Blue-bike",
         "km_per_year": 12000 if values.get("has_car") else 6000,
+        # Move-out: the month the customer told us, else the lease end if it's near, else the standard 3-month notice.
         "lease_end_date": f"{declared_move}-01" if declared_move else (
-            _month_after(lease) if lease is not None and not (isinstance(lease, float) and math.isnan(lease)) else _month_after(3)),
+            _month_after(lease) if lease is not None and not (isinstance(lease, float) and math.isnan(lease)) and lease <= 15
+            else _month_after(3)),
         "last_parking": running[-1]["result"]["session_id"] if running else None,
         "invoices": invoices,
         "largest_overdue": invoices[0]["number"] if invoices else None,
@@ -252,6 +254,8 @@ def prepare(service_id: str, action_id: str, params: dict, ctx: dict, seq: int, 
         fmt["travel_class"] = _r(lang, f"class.{v['travel_class']}")
     if isinstance(v.get("amount"), (int, float)):
         fmt["amount"] = _eur(v["amount"], lang)
+    if v.get("recipient") == "Your landlord":
+        fmt["recipient"] = {"en": "your landlord", "nl": "je verhuurder", "fr": "votre propriétaire"}[lang]
     if isinstance(v.get("km_per_year"), int):
         fmt["km_per_year"] = i18n.number(v["km_per_year"], lang)
     name, confirm, button = ACTIONS[lang].get(f"{service_id}.{action_id}", (a.name, a.confirm, a.button or None))
@@ -310,8 +314,9 @@ def execute(card: dict, ctx: dict) -> dict:
         start = dt.datetime.now().replace(second=0, microsecond=0)
         end = start + dt.timedelta(minutes=v["duration_min"])
         zone = _r(lang, "zone.paid" if v["city"] in BIG_CITIES else "zone.blue")
+        end_day = _date((dt.date.fromisoformat(TODAY) + (end.date() - start.date())).isoformat(), lang)
         return {**base, "kind": "parking_session", "session_id": ref, "city": city(v["city"]), "zone": zone,
-                "plate": v["plate"], "starts": f"{today} {start:%H:%M}", "ends": f"{today} {end:%H:%M}",
+                "plate": v["plate"], "starts": f"{today} {start:%H:%M}", "ends": f"{end_day} {end:%H:%M}",
                 "estimate": card["price_text"], "title": _r(lang, "parking.title", city=city(v["city"]), end=f"{end:%H:%M}")}
     if s == "4411" and a == "stop_parking":
         return {**base, "kind": "parking_stopped", "session_id": v["session_id"], "stopped_at": _now(),
@@ -379,7 +384,9 @@ def execute(card: dict, ctx: dict) -> dict:
                 "title": _r(lang, "checklist.title", premium=premium)}
     if s == "registered_email":
         subject = TEMPLATES[lang][v["template"]]
-        return {**base, "kind": "registered_email", "recipient": v["recipient"], "subject": subject,
+        recipient = {"en": "Your landlord", "nl": "Je verhuurder", "fr": "Votre propriétaire"}[lang] \
+            if v["recipient"] == "Your landlord" else v["recipient"]
+        return {**base, "kind": "registered_email", "recipient": recipient, "subject": subject,
                 "status": _r(lang, "email.status"), "sent_at": _now(), "legally_valid": True,
                 "preview": _r(lang, "email.preview", move_out=_date(v["move_out"], lang), name=ctx["first_name"]),
                 "title": _r(lang, "email.title", subject=subject)}

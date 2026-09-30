@@ -61,7 +61,7 @@ const T = {
     down: "The engine is not reachable. Start it and try again.", loading: "Loading…",
     customers: "Customers", random: "Random", reset: "Reset", simple: "Simple", detailed: "Detailed", pts: "pts",
     tick: "Mark: people like you", forYou: "For you: {freq}", spec: "Spec",
-    paused: "Okay, I won't bring this up for a while.", adviser: "An adviser will call you back (simulated).",
+    paused: "Okay, I won't bring this up for a while.", typing: "Kaat is typing…", adviser: "An adviser will call you back (simulated).",
   },
   nl: {
     greeting: "Goedenavond, {name}", home: "Start", picture: "Mijn beeld", kate: "Kaat",
@@ -77,7 +77,7 @@ const T = {
     down: "De engine is niet bereikbaar. Start hem en probeer opnieuw.", loading: "Laden…",
     customers: "Klanten", random: "Willekeurig", reset: "Reset", simple: "Eenvoudig", detailed: "Gedetailleerd", pts: "ptn",
     tick: "Streepje: mensen zoals jij", forYou: "Voor jou: {freq}", spec: "Spec",
-    paused: "Oké, ik kom hier een tijd niet op terug.", adviser: "Een adviseur belt je terug (gesimuleerd).",
+    paused: "Oké, ik kom hier een tijd niet op terug.", typing: "Kaat is aan het typen…", adviser: "Een adviseur belt je terug (gesimuleerd).",
   },
   fr: {
     greeting: "Bonsoir, {name}", home: "Accueil", picture: "Mon profil", kate: "Kaat",
@@ -93,7 +93,7 @@ const T = {
     down: "Le moteur n'est pas joignable. Démarrez-le et réessayez.", loading: "Chargement…",
     customers: "Clients", random: "Au hasard", reset: "Réinitialiser", simple: "Simple", detailed: "Détaillé", pts: "pts",
     tick: "Repère : personnes comme vous", forYou: "Pour vous : {freq}", spec: "Spec",
-    paused: "D'accord, je n'en reparlerai pas avant un moment.", adviser: "Un conseiller vous rappellera (simulé).",
+    paused: "D'accord, je n'en reparlerai pas avant un moment.", typing: "Kaat écrit…", adviser: "Un conseiller vous rappellera (simulé).",
   },
 } as const;
 
@@ -312,6 +312,7 @@ export default function KateApp() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [showSpec, setShowSpec] = useState(false);
   const [llmOn, setLlmOn] = useState(true);
+  const [typing, setTyping] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   const t = T[lang];
@@ -368,11 +369,11 @@ export default function KateApp() {
   }, [tab, uid]);
   // In the Kaat tab, follow the conversation: show the newest message.
   useEffect(() => {
-    if (tab !== "kate" || msgs.length < 2) return;
+    if (tab !== "kate" || (msgs.length < 2 && !typing)) return;
     const el = mainRef.current;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     requestAnimationFrame(() => el?.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" }));
-  }, [msgs.length, tab]);
+  }, [msgs.length, tab, typing]);
 
   const pickCustomer = (id: number, region?: string) => {
     if (region && !langManual) setLang(langForRegion(region));
@@ -424,6 +425,7 @@ export default function KateApp() {
     if (!msg || uid === null || busy) return;
     setMsgs((m) => [...m, { role: "u", text: msg }]);
     setBusy(true);
+    setTyping(true);
     const before = st?.predictions ?? [];
     try {
       const res = await fetch("/api/kaat/reply", {
@@ -442,6 +444,7 @@ export default function KateApp() {
       setMsgs((m) => [...m, { role: "k", text: String((e as Error).message) }]);
     } finally {
       setBusy(false);
+      setTyping(false);
     }
   };
 
@@ -596,11 +599,15 @@ export default function KateApp() {
   useEffect(() => {
     if (tab !== "kate" || !st || msgs.length) return;
     let cancelled = false;
-    fetchSpec(detail).then((m) => {
-      if (!cancelled) setMsgs([m ?? { role: "k", text: fill(t.hello, { name: st.profile.first_name }) }]);
-    });
+    setTyping(true);
+    fetchSpec(detail)
+      .then((m) => {
+        if (!cancelled) setMsgs([m ?? { role: "k", text: fill(t.hello, { name: st.profile.first_name }) }]);
+      })
+      .finally(() => !cancelled && setTyping(false));
     return () => {
       cancelled = true;
+      setTyping(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, st?.user_id, msgs.length, lang, detail]);
@@ -612,8 +619,13 @@ export default function KateApp() {
       if (id) setMsgs((m) => [...m, { role: "k", actions: [id] }]);
     },
     show_details: async (p) => {
-      const m = await fetchSpec("detailed", String(p.moment));
-      if (m) setMsgs((x) => [...x, m]);
+      setTyping(true);
+      try {
+        const m = await fetchSpec("detailed", String(p.moment));
+        if (m) setMsgs((x) => [...x, m]);
+      } finally {
+        setTyping(false);
+      }
     },
     not_now: async (p) => {
       if (await op("ignore", { moment: p.moment })) setMsgs((m) => [...m, { role: "k", text: t.paused }]);
@@ -659,7 +671,14 @@ export default function KateApp() {
             })}
           </div>
         ))}
-        {msgs.length > 0 && !msgs.some((m) => m.role === "u") && (
+        {typing && (
+          <div className="msg k with-av typing" role="status" aria-live="polite">
+            <span className="kate-av sm" aria-hidden="true" />
+            <span className="dots" aria-hidden="true"><i /><i /><i /></span>
+            <span className="sr-only">{t.typing}</span>
+          </div>
+        )}
+        {!typing && msgs.length > 0 && !msgs.some((m) => m.role === "u") && (
           <div className="starter">
             {startersFor(st, lang).map((s) => <button key={s} disabled={busy} onClick={() => sendChat(s)}>{s}</button>)}
           </div>

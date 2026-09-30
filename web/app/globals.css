@@ -142,3 +142,12 @@ button { cursor: pointer; }
 .tab.center { position: relative; }
 .tab-orb { width: 2.5rem; height: 2.5rem; margin-top: -1.125rem; box-shadow: 0 0 0 4px #fff, 0 6px 14px -6px rgba(0,60,120,.6); }
 .tab.center.on { color: var(--navy); }
+
+/* Kaat is typing: three dots that rise in turn (still when reduced motion is on). */
+.typing { align-items: center; }
+.dots { display: inline-flex; gap: 0.3rem; padding: 0.3rem 0.1rem; }
+.dots i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--navy2); opacity: 0.35; animation: kaat-dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: 0.15s; }
+.dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes kaat-dot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-0.3rem); opacity: 1; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

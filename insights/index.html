@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse Insights</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap">
+<style>
+/* Browser-first insights cockpit for KBC staff. Same tokens as the Kate Pulse app prototype. */
+:root{
+  --navy:#0E3A66; --navy2:#1C5C96; --blue:#0097DB; --blue-soft:#E3F3FB; --bg:#F3F6F9; --card:#FFFFFF;
+  --text:#14304F; --muted:#6B7C8F; --line:#E1E7EE;
+  --warn:#E07B00; --warn-soft:#FFF2E0; --ok:#1E8E5A; --ok-soft:#E3F5EC; --violet:#6B4BD8; --violet-soft:#EEEAFB;
+  --font:"Nunito Sans","Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.45}
+button{font:inherit;cursor:pointer}
+.top{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:12px 28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:900;color:var(--navy);font-size:17px}
+.orb{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#7FDBFF,var(--blue) 55%,#0079C1)}
+.logo small{font-weight:600;color:var(--muted);font-size:12px;margin-left:4px}
+.nav{display:flex;gap:4px;flex:1;flex-wrap:wrap}
+.nav a{padding:7px 12px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:700;font-size:13px}
+.nav a:hover{background:var(--bg);color:var(--navy)}
+.live{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.live b{color:var(--navy);font-variant-numeric:tabular-nums;font-size:14px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(30,142,90,.5);animation:pulse 1.6s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(30,142,90,0)}100%{box-shadow:0 0 0 0 rgba(30,142,90,0)}}
+.wrap{max-width:1320px;margin:0 auto;padding:24px 28px 60px;display:grid;gap:20px}
+h1{margin:0;font-size:28px;font-weight:900;color:var(--navy);letter-spacing:-.01em}
+h2{margin:0;font-size:17px;font-weight:800;color:var(--navy)}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.chip{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;background:var(--blue-soft);color:#0077B3;letter-spacing:.02em}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}.chip.ok{background:var(--ok-soft);color:var(--ok)}.chip.v{background:var(--violet-soft);color:var(--violet)}
+.grid-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.kpi b{display:block;font-size:28px;font-weight:900;color:var(--navy);font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:12.5px;color:var(--muted)}
+.kpi em{font-style:normal;font-size:12px;font-weight:800;color:var(--ok)}
+.kpi em.w{color:var(--warn)}
+.g2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+@media (max-width:1100px){.grid-k{grid-template-columns:repeat(3,1fr)}.g2,.g3{grid-template-columns:1fr}}
+@media (max-width:640px){.grid-k{grid-template-columns:1fr 1fr}.wrap{padding:16px}.top{padding:10px 16px}}
+svg text{font-family:var(--font)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.draw{stroke-dasharray:1400;stroke-dashoffset:1400;animation:draw 2.2s ease forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.area{opacity:0;animation:fade 1.2s .9s ease forwards}@keyframes fade{to{opacity:1}}
+/* funnel */
+.fn{display:grid;gap:9px}
+.fn .r{display:grid;grid-template-columns:150px 1fr 70px;align-items:center;gap:10px;font-size:13px}
+.fn .track{height:26px;background:var(--bg);border-radius:6px;overflow:hidden;position:relative}
+.fn .fill{height:100%;width:0;background:linear-gradient(90deg,var(--navy),var(--blue));border-radius:6px;transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.fn .r.drop .fill{background:linear-gradient(90deg,var(--warn),#F5A623)}
+.fn .v{text-align:right;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
+.callout{margin-top:12px;background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:13px;color:#8A4B00}
+/* heatmap */
+.hm{display:grid;grid-template-columns:130px repeat(4,1fr);gap:4px;font-size:12px}
+.hm .h{font-weight:700;color:var(--muted);text-align:center;padding:4px 2px;font-size:11.5px}
+.hm .rl{font-weight:700;color:var(--navy);display:flex;align-items:center}
+.hm .c{height:40px;border-radius:6px;display:grid;place-items:center;font-weight:800;color:#fff;opacity:0;transform:scale(.8);transition:.4s}
+.hm .c.in{opacity:1;transform:none}
+/* feed */
+.feed{display:grid;gap:8px;max-height:330px;overflow:hidden}
+.ev{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;animation:slide .5s ease both;background:#fff}
+@keyframes slide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.ev time{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ev b{display:block;color:var(--navy);font-size:13px}
+.ev span{font-size:12px;color:var(--muted)}
+.ev.hot{border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-soft)}
+.btn{border:0;border-radius:8px;padding:9px 14px;font-weight:800;background:var(--blue);color:#fff;font-size:13px}
+.btn.v{background:var(--violet)}
+.btn.ghost{background:#fff;color:var(--navy);border:1.5px solid var(--line)}
+/* Conveo study */
+.study{background:linear-gradient(135deg,#1B1446 0%,#2B1F6B 45%,var(--navy) 100%);color:#fff;border-radius:16px;padding:24px;display:grid;gap:18px;overflow:hidden;position:relative}
+.study h2{color:#fff;font-size:22px}
+.study .sub{color:rgba(255,255,255,.72)}
+.stepper{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.stepper div{font-size:11.5px;font-weight:800;color:rgba(255,255,255,.5);display:grid;gap:6px}
+.stepper div i{height:5px;border-radius:9px;background:rgba(255,255,255,.15);overflow:hidden;display:block}
+.stepper div i u{display:block;height:100%;width:0;background:#9D86FF;transition:width .5s linear}
+.stepper div.on{color:#fff}
+.stepper div.done i u{width:100%}
+.sgrid{display:grid;grid-template-columns:1fr 1.5fr 1.2fr;gap:16px}
+@media (max-width:1100px){.sgrid{grid-template-columns:1fr}.stepper{grid-template-columns:repeat(3,1fr)}}
+.panel{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px;min-width:0;transition:opacity .4s}
+.panel.dim{opacity:.35}
+.panel h3{margin:0 0 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#C9BDFF}
+.dots{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin:10px 0}
+.dots i{aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.14);transition:.25s}
+.dots i.on{background:#9D86FF;box-shadow:0 0 10px #9D86FF}
+.bigno{font-size:30px;font-weight:900;font-variant-numeric:tabular-nums}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.tile{background:rgba(0,0,0,.25);border-radius:10px;padding:10px;display:grid;gap:8px;min-width:0}
+.face{aspect-ratio:4/3;border-radius:8px;background:linear-gradient(160deg,#3A2D86,#1B1446);display:grid;place-items:center;position:relative}
+.face .ini{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-weight:900}
+.face .rec{position:absolute;top:6px;left:6px;font-size:9.5px;font-weight:800;background:#E0344B;border-radius:4px;padding:1px 5px;opacity:0}
+.tile.live .rec{opacity:1;animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
+.wave{display:flex;align-items:center;gap:2px;height:22px}
+.wave i{flex:1;background:#9D86FF;border-radius:2px;height:3px}
+.tile.live .wave i{animation:w .9s ease-in-out infinite}
+@keyframes w{0%,100%{height:3px}50%{height:20px}}
+.tr{font-size:11.5px;line-height:1.35;min-height:62px;color:rgba(255,255,255,.88)}
+.tr b{color:#C9BDFF}
+.bubbles{width:100%;height:auto;display:block}
+.bubbles circle{transition:r 1.1s cubic-bezier(.2,.8,.2,1)}
+.quote{font-size:15px;line-height:1.45;font-weight:600;min-height:70px;transition:opacity .4s}
+.quote small{display:block;font-weight:600;color:rgba(255,255,255,.6);font-size:12px;margin-top:6px}
+.ab{display:grid;gap:10px;margin-top:6px}
+.ab .r{display:grid;grid-template-columns:120px 1fr 44px;gap:10px;align-items:center;font-size:12.5px}
+.ab .t{height:18px;background:rgba(255,255,255,.1);border-radius:5px;overflow:hidden}
+.ab .t u{display:block;height:100%;width:0;border-radius:5px;background:rgba(255,255,255,.45);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.ab .r.win .t u{background:#58D68D}
+.ab b{font-variant-numeric:tabular-nums;text-align:right}
+.decision{background:rgba(88,214,141,.14);border:1px solid rgba(88,214,141,.5);border-radius:10px;padding:12px;font-weight:700;opacity:0;transform:translateY(6px);transition:.5s}
+.decision.in{opacity:1;transform:none}
+.loop{display:grid;grid-template-columns:repeat(4,1fr);gap:0;align-items:stretch}
+.loop div{background:#fff;border:1px solid var(--line);padding:14px 16px;position:relative}
+.loop div:first-child{border-radius:12px 0 0 12px}.loop div:last-child{border-radius:0 12px 12px 0}
+.loop div b{display:block;color:var(--navy);font-size:15px}
+.loop div span{font-size:12.5px;color:var(--muted)}
+.loop div::after{content:"›";position:absolute;right:-9px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:900;font-size:13px;z-index:1}
+.loop div:last-child::after{content:"↺"}
+@media (max-width:900px){.loop{grid-template-columns:1fr 1fr}.loop div{border-radius:0!important}}
+.foot{font-size:11.5px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.draw{stroke-dashoffset:0}.area{opacity:1}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><span class="orb"></span>Pulse Insights<small>for KBC teams · concept</small></div>
+  <nav class="nav"><a href="#what">What they do</a><a href="#journeys">Journeys</a><a href="#blindspots">Blindspots</a><a href="#why">Why (Conveo)</a><a href="#loop">The loop</a></nav>
+  <div class="live"><span class="dot"></span>Scored tonight <b id="scored">0</b></div>
+</header>
+
+<main class="wrap">
+  <section id="what" style="display:grid;gap:6px">
+    <h1>What 2.3 million customers are telling us</h1>
+    <p class="sub">Aggregated and anonymous. Groups smaller than 50 people are never shown. All figures are synthetic demo data.</p>
+  </section>
+
+  <section class="grid-k">
+    <div class="card kpi"><b data-count="131200">0</b><span>life moments detected this month</span><br><em>▲ 7% vs. last month</em></div>
+    <div class="card kpi"><b data-count="34" data-suf="%">0</b><span>of Kate’s suggestions acted on</span><br><em>▲ 3× today’s Kate campaigns</em></div>
+    <div class="card kpi"><b data-count="8033">0</b><span>advisor meetings prepared with a brief</span><br><em>▲ 11 min saved per meeting</em></div>
+    <div class="card kpi"><b data-count="18" data-suf="%">0</b><span>“not for me” rate across suggestions</span><br><em class="w">shared account: 41%</em></div>
+    <div class="card kpi"><b data-count="312">0</b><span>customer interviews run with Conveo</span><br><em>6 studies · 48 h each</em></div>
+  </section>
+
+  <section class="g2">
+    <div class="card">
+      <div class="head"><div><h2>Life moments per week</h2><p class="sub">Detected by the nightly engine, last 12 weeks</p></div>
+        <div class="legend"><span><i style="background:var(--warn)"></i>Cash squeeze</span><span><i style="background:var(--navy)"></i>Moving house</span><span><i style="background:var(--blue)"></i>New job</span><span><i style="background:var(--violet)"></i>New child</span></div></div>
+      <svg id="lines" viewBox="0 0 640 250" class="bubbles" role="img" aria-label="Life moments per week"></svg>
+    </div>
+    <div class="card">
+      <div class="head"><div><h2>Signals worth a look</h2><p class="sub">Anomalies the engine flags automatically</p></div><span class="chip v">live</span></div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </section>
+
+  <section class="g3" id="journeys">
+    <div class="card" style="grid-column:span 2">
+      <div class="head"><div><h2>Where customers get stuck: mortgage simulator</h2><p class="sub">184,000 sessions this quarter</p></div><span class="chip warn">friction</span></div>
+      <div class="fn" id="funnel"></div>
+      <div class="callout"><b>64% leave at “own contribution”.</b> Hypothesis: people don’t know which savings count. Test: let Kate prefill it from their accounts.</div>
+    </div>
+    <div class="card" id="blindspots">
+      <div class="head"><div><h2>Blindspots by life moment</h2><p class="sub">% without the cover that matters</p></div></div>
+      <div class="hm" id="heat"></div>
+    </div>
+  </section>
+
+  <!-- Conveo study -->
+  <section class="study" id="why">
+    <div class="head" style="margin:0">
+      <div><span class="chip v" style="background:rgba(157,134,255,.2);color:#C9BDFF">Big data shows what · interviews show why</span>
+        <h2 style="margin-top:8px">Why do 41% say “not for me” to a shared account?</h2>
+        <p class="sub">KBC launches an AI-moderated video study with Conveo straight from the anomaly. No agency, no 6-week wait.</p></div>
+      <div style="display:flex;gap:8px"><button class="btn v" id="run">▶ Run study</button><button class="btn ghost" id="skip" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.3)">Show result</button></div>
+    </div>
+    <div class="stepper" id="stepper">
+      <div data-s="0"><i><u></u></i>1 · Trigger</div><div data-s="1"><i><u></u></i>2 · Recruit</div><div data-s="2"><i><u></u></i>3 · AI interviews</div>
+      <div data-s="3"><i><u></u></i>4 · Themes</div><div data-s="4"><i><u></u></i>5 · Decision</div><div data-s="5"><i><u></u></i>6 · Test</div>
+    </div>
+    <div class="sgrid">
+      <div class="panel" id="p1">
+        <h3>Recruit from the anomaly</h3>
+        <p style="margin:0;font-size:13px;color:rgba(255,255,255,.8)">Invited in the app: couples who tapped “not for me” in the last 30 days. Opt-in, rewarded with 15 Kate Coins.</p>
+        <div class="dots" id="dots"></div>
+        <div style="display:flex;justify-content:space-between;align-items:end"><div><div class="bigno" id="acc">0</div><span style="font-size:12px;color:rgba(255,255,255,.6)">accepted of 120 invited</span></div>
+          <div style="text-align:right"><div class="bigno" id="hrs">0 h</div><span style="font-size:12px;color:rgba(255,255,255,.6)">elapsed</span></div></div>
+      </div>
+      <div class="panel" id="p2">
+        <h3>AI-moderated video interviews <span id="ivc" style="float:right;color:#fff">0 / 30</span></h3>
+        <div class="tiles" id="tiles"></div>
+      </div>
+      <div class="panel" id="p3">
+        <h3>Themes across 30 interviews</h3>
+        <svg class="bubbles" viewBox="0 0 320 194" id="bub"></svg>
+        <div class="quote" id="quote"></div>
+      </div>
+    </div>
+    <div class="sgrid" style="grid-template-columns:1fr 1fr">
+      <div class="panel" id="p4">
+        <h3>Decision</h3>
+        <div class="decision" id="decision">Replace the “joint account” suggestion with a <u>shared pot</u>: a shared balance for rent and bills that works even if your partner banks elsewhere.</div>
+      </div>
+      <div class="panel" id="p5">
+        <h3>Kate tests it on 5% of couples</h3>
+        <div class="ab">
+          <div class="r"><span>Joint account</span><div class="t"><u id="abA"></u></div><b id="abAv">0%</b></div>
+          <div class="r win"><span>Shared pot</span><div class="t"><u id="abB"></u></div><b id="abBv">0%</b></div>
+          <div class="r"><span>“Not for me”</span><div class="t"><u id="abC"></u></div><b id="abCv">0%</b></div>
+        </div>
+        <p style="margin:8px 0 0;font-size:11.5px;color:rgba(255,255,255,.55)">Projected, illustrative numbers.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="loop" style="display:grid;gap:12px">
+    <h2>The loop that keeps KBC learning</h2>
+    <div class="loop">
+      <div><b>1 · What</b><span>Big data on 2.3M customers finds patterns and anomalies every night.</span></div>
+      <div><b>2 · Why</b><span>Conveo interviews 30 of the customers involved within 48 hours.</span></div>
+      <div><b>3 · Change</b><span>Product, pricing or Kate’s wording changes.</span></div>
+      <div><b>4 · Measure</b><span>Kate tests it on a small group and rolls out what works.</span></div>
+    </div>
+    <p class="foot">Hackathon concept. Not a KBC product. All numbers, interviews and quotes are synthetic and illustrative.</p>
+  </section>
+</main>
+
+<script>
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fmt = n => Math.round(n).toLocaleString('en-GB');
+const $ = id => document.getElementById(id);
+
+/* Count-up KPIs + live counter */
+function countUp(el,to,suf='',ms=1400){ if(reduce){el.textContent=fmt(to)+suf;return}
+  const t0=performance.now(); const f=t=>{const p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3); el.textContent=fmt(to*e)+suf; if(p<1)requestAnimationFrame(f)}; requestAnimationFrame(f); }
+document.querySelectorAll('[data-count]').forEach(el=>countUp(el,+el.dataset.count,el.dataset.suf||''));
+let scored=2300000*0.62; (function tick(){ scored=Math.min(2300000,scored+Math.random()*4200+1800); $('scored').textContent=fmt(scored); if(scored<2300000) setTimeout(tick,120); })();
+
+/* Line chart */
+(function(){
+  const W=640,H=250,L=40,R=12,T=12,B=28, weeks=['W27','W28','W29','W30','W31','W32','W33','W34','W35','W36','W37','W38'];
+  const S=[['var(--warn)',[11.2,11.4,11.3,11.9,12.2,12.0,12.8,13.4,13.1,14.0,14.6,15.3]],
+           ['var(--navy)',[8.9,9.3,9.8,10.1,9.6,9.2,9.0,9.3,9.5,9.4,9.6,9.6]],
+           ['var(--blue)',[5.8,5.9,6.4,6.8,6.1,5.6,5.3,5.9,6.2,5.8,5.6,5.5]],
+           ['var(--violet)',[2.3,2.2,2.4,2.3,2.2,2.3,2.4,2.3,2.2,2.3,2.3,2.3]]];
+  const max=16, x=i=>L+i*(W-L-R)/(weeks.length-1), y=v=>T+(1-v/max)*(H-T-B);
+  let g=''; [0,4,8,12,16].forEach(v=>{g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${v}k</text>`});
+  weeks.forEach((w,i)=>{ if(i%2===0) g+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${w}</text>`});
+  S.forEach(([c,d],k)=>{ const pts=d.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+    if(k===0) g+=`<polygon class="area" points="${x(0)},${y(0)} ${pts} ${x(d.length-1)},${y(0)}" fill="var(--warn)" fill-opacity=".08"/>`;
+    g+=`<polyline class="draw" style="animation-delay:${k*.25}s" points="${pts}" fill="none" stroke="${c}" stroke-width="${k===0?3:2.2}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    g+=`<circle class="area" cx="${x(d.length-1)}" cy="${y(d[d.length-1])}" r="4.5" fill="${c}"/>`; });
+  g+=`<text class="area" x="${x(11)-6}" y="${y(15.3)-10}" text-anchor="end" font-size="12" font-weight="800" fill="var(--warn)">Cash squeeze +37%</text>`;
+  $('lines').innerHTML=g;
+})();
+
+/* Funnel */
+(function(){
+  const rows=[['Opened simulator',184000],['Entered price',149000],['Own contribution',53400,1],['Saw monthly payment',44200],['Booked advisor',16600]];
+  $('funnel').innerHTML=rows.map(([l,v,d])=>`<div class="r ${d?'drop':''}"><span>${l}</span><div class="track"><div class="fill" data-w="${100*v/184000}"></div></div><span class="v">${fmt(v)}</span></div>`).join('');
+  setTimeout(()=>document.querySelectorAll('.fill').forEach((f,i)=>setTimeout(()=>f.style.width=f.dataset.w+'%',i*180)),300);
+})();
+
+/* Heatmap */
+(function(){
+  const cols=['Income protection','Home insurance','Emergency buffer','Pension saving'];
+  const rows=[['First home',[71,9,58,44]],['New child',[63,12,49,52]],['New job',[48,31,62,67]],['Cash squeeze',[55,18,88,74]],['Near retirement',[22,6,19,15]]];
+  let h='<div></div>'+cols.map(c=>`<div class="h">${c}</div>`).join('');
+  rows.forEach(([r,v])=>{ h+=`<div class="rl">${r}</div>`+v.map(p=>`<div class="c" style="background:${p>60?'var(--warn)':p>35?'#F0A94B':'var(--blue)'}" title="${p}% without">${p}%</div>`).join('') });
+  $('heat').innerHTML=h;
+  setTimeout(()=>document.querySelectorAll('.hm .c').forEach((c,i)=>setTimeout(()=>c.classList.add('in'),i*45)),500);
+})();
+
+/* Live anomaly feed */
+const EVENTS=[
+  ['21:02','Cash squeeze up 37% in 12 weeks','Mostly 25–34, energy bills',''],
+  ['20:47','Mortgage simulator drop-off at step 3','64% leave at own contribution',''],
+  ['20:31','Income protection gap after buying a home','71% of first-time buyers',''],
+  ['20:12','“Not for me” on shared account: 41%','Up 18 points since June','hot']
+];
+(function(){ let i=0; const f=$('feed');
+  const add=()=>{ if(i>=EVENTS.length) return; const [t,a,b,hot]=EVENTS[i++];
+    const el=document.createElement('div'); el.className='ev '+hot;
+    el.innerHTML=`<time>${t}</time><div><b>${a}</b><span>${b}</span></div>${hot?'<button class="btn v" data-go-why>Ask why</button>':'<span class="chip">tracked</span>'}`;
+    f.prepend(el); setTimeout(add, reduce?0:900); };
+  add();
+  f.addEventListener('click',e=>{ if(e.target.closest('[data-go-why]')){ $('why').scrollIntoView({behavior:'smooth'}); setTimeout(runStudy,600);} });
+})();
+
+/* Conveo study */
+const PEOPLE=[['LD','Lotte, 29'],['MV','Mehdi, 34'],['AS','An, 41']];
+const TRANSCRIPTS=[
+  ['Why did you tap “not for me”?','We just moved in together. Merging everything feels too soon.'],
+  ['What would help instead?','Something only for rent and bills. My partner is at another bank.'],
+  ['How do you split costs today?','A spreadsheet and a lot of “did you pay the energy yet?”']
+];
+const THEMES=[[56,'Separate money, shared pot for bills','#9D86FF',70,95],[27,'Partner banks elsewhere','#5BC0EB',190,62],[17,'Joint account feels like a big step','#F5A623',266,136]];
+const QUOTES=[
+  ['“We’re not ready to merge everything. I just want rent and energy to go out without discussing it every month.”','Lotte, 29 · Ghent'],
+  ['“My partner won’t switch banks. If it only works at KBC, it doesn’t work for us.”','Mehdi, 34 · Antwerp'],
+  ['“A joint account sounds like marriage. A shared pot sounds like splitting the rent.”','An, 41 · Leuven']
+];
+$('dots').innerHTML='<i></i>'.repeat(30);
+$('tiles').innerHTML=PEOPLE.map((p,i)=>`<div class="tile" id="tile${i}"><div class="face"><span class="rec">● REC</span><span class="ini">${p[0]}</span></div><div class="wave">${'<i></i>'.repeat(18)}</div><div class="tr" id="tr${i}"><span style="color:rgba(255,255,255,.5)">${p[1]} · waiting</span></div></div>`).join('');
+document.querySelectorAll('.wave i').forEach((w,i)=>w.style.animationDelay=(i%7)*.09+'s');
+$('bub').innerHTML=THEMES.map(([p,l,c,cx,cy],i)=>`<circle id="b${i}" cx="${cx}" cy="${cy}" r="0" fill="${c}" fill-opacity=".85"/><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="${i?15:22}" font-weight="900" fill="#fff" opacity="0" id="bt${i}">${p}%</text>`).join('')
+  + `<g id="bl" opacity="0" font-size="10.5" fill="rgba(255,255,255,.85)"><text x="70" y="166" text-anchor="middle">Shared pot for bills</text><text x="190" y="12" text-anchor="middle">Partner banks elsewhere</text><text x="318" y="188" text-anchor="end">Joint account = big step</text></g>`;
+
+let timers=[]; const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
+function stage(n){ document.querySelectorAll('#stepper div').forEach(d=>{const s=+d.dataset.s; d.classList.toggle('on',s===n); d.classList.toggle('done',s<n); d.querySelector('u').style.width = s<n?'100%':s===n?'60%':'0'}); }
+function resetStudy(){ timers.forEach(clearTimeout); timers=[];
+  document.querySelectorAll('#dots i').forEach(d=>d.classList.remove('on')); $('acc').textContent='0'; $('hrs').textContent='0 h'; $('ivc').textContent='0 / 30';
+  PEOPLE.forEach((p,i)=>{ $('tile'+i).classList.remove('live'); $('tr'+i).innerHTML=`<span style="color:rgba(255,255,255,.5)">${p[1]} · waiting</span>`; });
+  THEMES.forEach((t,i)=>{ $('b'+i).setAttribute('r',0); $('bt'+i).setAttribute('opacity',0); }); $('bl').setAttribute('opacity',0);
+  $('quote').textContent=''; $('decision').classList.remove('in'); ['abA','abB','abC'].forEach(k=>$(k).style.width=0); ['abAv','abBv','abCv'].forEach(k=>$(k).textContent='0%');
+  ['p1','p2','p3','p4','p5'].forEach(p=>$(p).classList.add('dim')); stage(-1); }
+function typeInto(el, html, ms=900){ const txt=html; let i=0; const plain=txt.replace(/<[^>]+>/g,''); const step=Math.max(8,ms/plain.length);
+  const tick=()=>{ i++; el.textContent=plain.slice(0,i); if(i<plain.length) later(tick,step); else el.innerHTML=txt; }; tick(); }
+function showThemes(){ THEMES.forEach(([p],i)=>later(()=>{ $('b'+i).setAttribute('r', 14+Math.sqrt(p)*5.5); $('bt'+i).setAttribute('opacity',1); }, i*350)); later(()=>$('bl').setAttribute('opacity',1),1100);
+  let q=0; const rot=()=>{ const [t,w]=QUOTES[q%QUOTES.length]; $('quote').style.opacity=0; later(()=>{$('quote').innerHTML=`${t}<small>${w}</small>`;$('quote').style.opacity=1},300); q++; later(rot,3800); }; rot(); }
+function showTest(){ const set=(k,v)=>{$(k).style.width=v+'%'; countUp($(k+'v'),v,'%',1300)}; set('abA',12); later(()=>set('abB',31),250); later(()=>set('abC',14),500); }
+
+function runStudy(){
+  resetStudy(); const run=$('run'); run.textContent='● Running…';
+  stage(0); $('p1').classList.remove('dim');
+  later(()=>{ stage(1); let a=0; const dots=[...document.querySelectorAll('#dots i')];
+    const fill=()=>{ if(a<30){ dots[a].classList.add('on'); a++; $('acc').textContent=a; $('hrs').textContent=Math.round(a*0.4)+' h'; later(fill,70);} }; fill(); }, 700);
+  later(()=>{ stage(2); $('p2').classList.remove('dim');
+    PEOPLE.forEach((p,i)=>later(()=>{ $('tile'+i).classList.add('live'); const [q,a]=TRANSCRIPTS[i];
+      typeInto($('tr'+i), `<b>AI:</b> ${q}<br>${p[1].split(',')[0]}: ${a}`, 1500); }, i*500));
+    let n=0; const cnt=()=>{ if(n<30){n++; $('ivc').textContent=n+' / 30'; $('hrs').textContent=Math.round(12+n*1.2)+' h'; later(cnt,95);} }; cnt(); }, 3000);
+  later(()=>{ PEOPLE.forEach((p,i)=>$('tile'+i).classList.remove('live')); stage(3); $('p3').classList.remove('dim'); showThemes(); $('hrs').textContent='48 h'; }, 6600);
+  later(()=>{ stage(4); $('p4').classList.remove('dim'); $('decision').classList.add('in'); }, 8600);
+  later(()=>{ stage(5); $('p5').classList.remove('dim'); showTest(); }, 9800);
+  later(()=>{ stage(6); run.textContent='↺ Replay study'; }, 11400);
+}
+function showResult(){ resetStudy(); ['p1','p2','p3','p4','p5'].forEach(p=>$(p).classList.remove('dim'));
+  document.querySelectorAll('#dots i').forEach(d=>d.classList.add('on')); $('acc').textContent='30'; $('hrs').textContent='48 h'; $('ivc').textContent='30 / 30';
+  PEOPLE.forEach((p,i)=>{ const [q,a]=TRANSCRIPTS[i]; $('tr'+i).innerHTML=`<b>AI:</b> ${q}<br>${p[1].split(',')[0]}: ${a}`; });
+  showThemes(); $('decision').classList.add('in'); showTest(); stage(6); $('run').textContent='↺ Replay study'; }
+$('run').onclick=runStudy; $('skip').onclick=showResult;
+resetStudy();
+if(reduce) showResult();
+</script>
+</body>
+</html>

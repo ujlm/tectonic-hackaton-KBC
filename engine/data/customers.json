@@ -1,0 +1,91 @@
+{
+  "_note": "Synthetic demo customers. No real KBC data.",
+  "customers": [
+    {
+      "id": "sarah",
+      "name": "Sarah",
+      "age": 31,
+      "consent": { "transactions": true, "appUsage": true, "products": true, "peerPatterns": true },
+      "checkins": [],
+      "products": ["current_account", "savings_account", "mortgage_offer"],
+      "mortgage": { "amount": 265000, "monthly": 1140, "deedDate": "2026-11-12" },
+      "income": { "monthlyNet": 2640 },
+      "transactions": [
+        { "date": "2026-09-28", "counterparty": "Colruyt Gent", "amount": -64.20, "category": "groceries" },
+        { "date": "2026-09-27", "counterparty": "UZ Gent", "amount": 2640.00, "category": "salary" },
+        { "date": "2026-09-25", "counterparty": "Lievenslaan 14", "amount": -890.00, "category": "rent" },
+        { "date": "2026-09-19", "counterparty": "IKEA Gent", "amount": -412.50, "category": "furniture" },
+        { "date": "2026-09-02", "counterparty": "Notary Van Damme", "amount": -10000.00, "category": "notary" },
+        { "date": "2026-09-01", "counterparty": "Netflix", "amount": -13.99, "category": "subscription" }
+      ],
+      "appEvents": [
+        { "type": "simulator_open", "tool": "mortgage", "hour": 20 },
+        { "type": "simulator_open", "tool": "mortgage", "hour": 21 },
+        { "type": "simulator_open", "tool": "mortgage", "hour": 20 },
+        { "type": "simulator_open", "tool": "mortgage", "hour": 20 },
+        { "type": "search", "query": "fire insurance", "hour": 20 }
+      ],
+      "behaviour": { "menuUseRate": 0.82, "searchUseRate": 0.41, "textZoom": 1.0, "avgReadSeconds": 6, "branchCalls90d": 0 },
+      "feedback": { "notForMe": ["investing"] }
+    },
+    {
+      "id": "jos",
+      "name": "Jos",
+      "age": 76,
+      "consent": { "transactions": true, "appUsage": true, "products": true, "peerPatterns": false },
+      "checkins": [],
+      "products": ["current_account", "savings_account"],
+      "income": { "monthlyNet": 1845 },
+      "trustedPerson": "Ann",
+      "transactions": [
+        { "date": "2026-09-29", "counterparty": "Secure Invest Ltd", "amount": -2400.00, "category": "transfer", "newPayee": true, "hour": 14 },
+        { "date": "2026-09-28", "counterparty": "Federale Pensioendienst", "amount": 1845.00, "category": "pension" },
+        { "date": "2026-09-26", "counterparty": "Engie", "amount": -96.00, "category": "energy" },
+        { "date": "2026-09-25", "counterparty": "Delhaize", "amount": -42.00, "category": "groceries" },
+        { "date": "2026-09-18", "counterparty": "Delhaize", "amount": -51.30, "category": "groceries" },
+        { "date": "2026-09-10", "counterparty": "Ann", "amount": -100.00, "category": "transfer" },
+        { "date": "2026-09-04", "counterparty": "Apotheek De Linde", "amount": -23.10, "category": "pharmacy" }
+      ],
+      "appEvents": [
+        { "type": "open_home", "hour": 10 },
+        { "type": "open_home", "hour": 10 }
+      ],
+      "behaviour": { "menuUseRate": 0.03, "searchUseRate": 0.0, "textZoom": 1.6, "avgReadSeconds": 22, "branchCalls90d": 3 },
+      "feedback": { "notForMe": [] }
+    },
+    {
+      "id": "lina",
+      "name": "Lina",
+      "age": 24,
+      "consent": { "transactions": true, "appUsage": true, "products": true, "peerPatterns": true },
+      "checkins": [],
+      "products": ["current_account"],
+      "income": { "monthlyNet": 2210 },
+      "transactions": [
+        { "date": "2026-09-27", "counterparty": "Deloitte Belgium", "amount": 2210.00, "category": "salary", "firstTime": true },
+        { "date": "2026-09-20", "counterparty": "Student job Vlerick", "amount": 410.00, "category": "salary" }
+      ],
+      "appEvents": [ { "type": "open_home", "hour": 8 }, { "type": "search", "query": "savings", "hour": 8 } ],
+      "behaviour": { "menuUseRate": 0.7, "searchUseRate": 0.5, "textZoom": 1.0, "avgReadSeconds": 5, "branchCalls90d": 0 },
+      "feedback": { "notForMe": [] }
+    },
+    {
+      "id": "marc",
+      "name": "Marc",
+      "age": 45,
+      "consent": { "transactions": true, "appUsage": false, "products": true, "peerPatterns": true },
+      "checkins": [],
+      "products": ["current_account"],
+      "income": { "monthlyNet": 2480 },
+      "transactions": [
+        { "date": "2026-09-27", "counterparty": "Engie", "amount": -310.00, "category": "energy" },
+        { "date": "2026-09-20", "counterparty": "Overdraft interest", "amount": -18.40, "category": "fees" },
+        { "date": "2026-09-01", "counterparty": "Employer NV", "amount": 2480.00, "category": "salary" }
+      ],
+      "balanceTrend": [1200, 840, 410, -120, -380],
+      "appEvents": [],
+      "behaviour": { "menuUseRate": 0.4, "searchUseRate": 0.1, "textZoom": 1.1, "avgReadSeconds": 9, "branchCalls90d": 1 },
+      "feedback": { "notForMe": [] }
+    }
+  ]
+}

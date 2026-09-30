@@ -1,0 +1,237 @@
+{
+  "generatedAt": "2026-09-30T18:58:34.893Z",
+  "thresholds": {
+    "ask": 0.5,
+    "act": 0.7
+  },
+  "customers": {
+    "sarah": {
+      "id": "sarah",
+      "name": "Sarah",
+      "fraud": null,
+      "topMoment": {
+        "moment": "moving",
+        "label": "Buying a home",
+        "confidence": 0.62,
+        "signals": [
+          {
+            "id": "notary",
+            "weight": 0.22,
+            "text": "Notary deposit of €10,000",
+            "source": "Transactions"
+          },
+          {
+            "id": "sim",
+            "weight": 0.15,
+            "text": "Mortgage simulator opened 4×",
+            "source": "App use"
+          },
+          {
+            "id": "search",
+            "weight": 0.1,
+            "text": "Searched for home insurance",
+            "source": "App use"
+          },
+          {
+            "id": "gap",
+            "weight": 0.1,
+            "text": "Mortgage offer without income protection",
+            "source": "Products you hold"
+          },
+          {
+            "id": "peers",
+            "weight": 0.05,
+            "text": "Similar first-time buyers",
+            "source": "Anonymous patterns"
+          }
+        ],
+        "blockedByConsent": []
+      },
+      "decision": "ask",
+      "blindspots": [
+        {
+          "id": "income_protection",
+          "title": "If one of you can’t work, the mortgage payment stays",
+          "why": "€1,140 a month is 43% of your net income on one salary.",
+          "costToCustomer": 13680,
+          "blindspot": true
+        },
+        {
+          "id": "home_insurance",
+          "title": "Home insurance before 2026-11-12",
+          "why": "The notary needs proof before the deed date.",
+          "costToCustomer": 5000,
+          "deadline": "2026-11-12"
+        },
+        {
+          "id": "shared_account",
+          "title": "Shared household account",
+          "why": "Optional, handy after the move.",
+          "costToCustomer": 0
+        }
+      ],
+      "layout": {
+        "mode": "full",
+        "reasons": [
+          "uses search and shortcuts",
+          "skims: keep it short"
+        ]
+      },
+      "bestHour": 20,
+      "afterConfirm": {
+        "confidence": 0.92,
+        "decision": "act",
+        "signals": [
+          {
+            "id": "checkin",
+            "weight": 0.4,
+            "text": "You told us you’re buying a home",
+            "source": "Check-in"
+          },
+          {
+            "id": "notary",
+            "weight": 0.22,
+            "text": "Notary deposit of €10,000",
+            "source": "Transactions"
+          },
+          {
+            "id": "sim",
+            "weight": 0.15,
+            "text": "Mortgage simulator opened 4×",
+            "source": "App use"
+          },
+          {
+            "id": "gap",
+            "weight": 0.1,
+            "text": "Mortgage offer without income protection",
+            "source": "Products you hold"
+          },
+          {
+            "id": "peers",
+            "weight": 0.05,
+            "text": "Similar first-time buyers",
+            "source": "Anonymous patterns"
+          }
+        ]
+      }
+    },
+    "jos": {
+      "id": "jos",
+      "name": "Jos",
+      "fraud": {
+        "action": "pause_and_ask",
+        "holdHours": 24,
+        "payment": {
+          "date": "2026-09-29",
+          "counterparty": "Secure Invest Ltd",
+          "amount": -2400,
+          "category": "transfer",
+          "newPayee": true,
+          "hour": 14
+        },
+        "reason": "New payee and 47× larger than a typical payment",
+        "notify": "Ann"
+      },
+      "topMoment": null,
+      "decision": "silent",
+      "blindspots": [],
+      "layout": {
+        "mode": "simple",
+        "reasons": [
+          "rarely uses the menus",
+          "enlarged text on the phone",
+          "prefers calling the branch"
+        ]
+      },
+      "bestHour": 10
+    },
+    "lina": {
+      "id": "lina",
+      "name": "Lina",
+      "fraud": null,
+      "topMoment": {
+        "moment": "first_job",
+        "label": "First job",
+        "confidence": 0.7,
+        "signals": [
+          {
+            "id": "first_salary",
+            "weight": 0.55,
+            "text": "First salary from a new employer",
+            "source": "Transactions"
+          },
+          {
+            "id": "search_sav",
+            "weight": 0.15,
+            "text": "Searched for savings",
+            "source": "App use"
+          }
+        ],
+        "blockedByConsent": []
+      },
+      "decision": "act",
+      "blindspots": [
+        {
+          "id": "pension_saving",
+          "title": "Start pension saving with tax benefit",
+          "why": "Starting at 24 instead of 34 roughly doubles the result.",
+          "costToCustomer": 900,
+          "blindspot": true
+        }
+      ],
+      "layout": {
+        "mode": "full",
+        "reasons": [
+          "uses search and shortcuts",
+          "skims: keep it short"
+        ]
+      },
+      "bestHour": 8
+    },
+    "marc": {
+      "id": "marc",
+      "name": "Marc",
+      "fraud": null,
+      "topMoment": {
+        "moment": "cash_squeeze",
+        "label": "Cash squeeze",
+        "confidence": 0.8,
+        "signals": [
+          {
+            "id": "balance_down",
+            "weight": 0.45,
+            "text": "Balance below zero after 4 months of decline",
+            "source": "Transactions"
+          },
+          {
+            "id": "overdraft_fee",
+            "weight": 0.2,
+            "text": "Overdraft interest charged",
+            "source": "Transactions"
+          },
+          {
+            "id": "energy_spike",
+            "weight": 0.15,
+            "text": "Energy bill much higher than usual",
+            "source": "Transactions"
+          }
+        ],
+        "blockedByConsent": []
+      },
+      "decision": "act",
+      "blindspots": [
+        {
+          "id": "budget_help",
+          "title": "Talk to someone about your budget",
+          "why": "Before overdraft interest adds up.",
+          "costToCustomer": 300
+        }
+      ],
+      "layout": {
+        "mode": "full",
+        "reasons": []
+      },
+      "bestHour": null
+    }
+  }
+}

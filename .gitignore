@@ -6,3 +6,15 @@ __pycache__/
 .env
 .env.local
 .env.*
+# Web
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+test-results/
+playwright-report/
+.env*
+
+# Engine build output
+engine/app/_native/

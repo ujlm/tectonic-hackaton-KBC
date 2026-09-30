@@ -151,6 +151,14 @@ SERVICES: dict[str, Service] = {s.id: s for s in [
                 P("note", "string", "", label="Note", required=False)),
                sends=True, confirm="Ask {contact} for {amount} via Wero{note_suffix}.", result="payment_request", button="Send request"),
     )),
+    Service("buffer", "Automatic buffer", "Household & payments",
+            "Set money aside on payday; it tops up your current account whenever it would go below zero. A free "
+            "account feature, not a product.", "#2E7D6B", actions=(
+                Action("start", "Start an automatic buffer",
+                       (P("amount", "number", "@suggested_buffer", min=10, max=500, label="Amount per month (€)"),),
+                       confirm="Set aside {amount} on payday, every month.", result="buffer"),
+                Action("stop", "Stop the automatic buffer", (), confirm="Stop setting money aside.", result="buffer_stopped"),
+            )),
     # --- Home ------------------------------------------------------------------------------------
     Service("myhome", "MyHome", "Home", "Estimate your home's value and plan renovations.", "#00AEEF",
             signals=("myhome_valuations_90d",), actions=(

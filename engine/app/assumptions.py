@@ -12,20 +12,18 @@ import duckdb
 import lightgbm as lgb
 import numpy as np
 
-from . import evidence, journeys, orchestrator
+from . import evidence, forecast, i18n, journeys, orchestrator
+from . import session as session_store
 from .services import mock
 from .services.registry import NOT_USED_SERVICES, SIGNAL_EFFECTS
 from .common import (
-    CATEGORIES, COHORT_FEATURES, DB_PATH, DECLARABLE_EVENTS, EMPLOYMENT, MODEL_FEATURES, MODELS_DIR,
-    MOMENT_LABELS, MOMENTS, NEIGHBOUR_FEATURES, OBS_MONTHS, OUT_MONTHS, REGIONS, cohort_cell,
-    cohort_label, neighbour_matrix, sigmoid,
+    AGE_BAND_LABELS, AGE_EDGES, COHORT_FEATURES, DB_PATH, DECLARABLE_EVENTS, EMPLOYMENT, HH_EDGES, MODEL_FEATURES,
+    MODELS_DIR, MOMENT_LABELS, MOMENTS, NEIGHBOUR_FEATURES, OBS_MONTHS, OUT_MONTHS, REGIONS, cohort_cell,
+    neighbour_matrix, sigmoid,
 )
 
-TX, PROD, APP, PEERS, TOLD = ("inferred from transactions", "from your products", "from your app activity",
-                              "from similar customers", "you told us")
-SVC = "via your KBC Mobile services"
-EMPLOYMENT_LABELS = {"employee": "an employee", "self_employed": "self-employed", "retired": "retired",
-                     "student": "a student"}
+# Evidence sources (keys into i18n "source.*").
+TX, PROD, APP, PEERS, TOLD, SVC = "transactions", "products", "app", "peers", "told", "services"
 
 # Feature catalogue: every model feature, in plain English.
 # type: amount | ratio | months | years | count | bool | choice | cohort
@@ -33,9 +31,11 @@ EMPLOYMENT_LABELS = {"employee": "an employee", "self_employed": "self-employed"
 CATALOGUE = {
     "age": dict(label="You are {value} old", evidence="Date of birth on file", editable=False, type="years",
                 min=18, max=110, source=PROD),
-    "household_size": dict(label="Your household has {value} people", evidence="From your customer profile",
+    "household_size": dict(label="Your household has {value} people", label_one="You live on your own",
+                           evidence="From your customer profile",
                            editable=True, type="count", min=1, max=12, source=PROD),
     "n_children": dict(label="{value} children live with you", label_zero="No children live with you",
+                       label_one="1 child lives with you",
                        evidence="From your customer profile", editable=True, type="count", min=0, max=10, source=PROD),
     "owns_home": dict(label="You own your home", label_false="You don't own a home",
                       evidence="Mortgage or home insurance with us", editable=True, type="bool", source=PROD),
@@ -143,7 +143,7 @@ CATALOGUE = {
     "registered_email_to_landlord_90d": dict(label="You sent {value} registered e-mail(s) to your landlord in the last 3 months",
                                              label_zero="You sent no registered e-mails to your landlord recently",
                                              evidence="Registered e-mail in KBC Mobile: we only see that the recipient is your landlord, never the content",
-                                             editable=False, type="count", source=SVC),
+                                             editable=True, type="count", min=0, max=10, source=SVC),
     "service_vouchers_monthly": dict(label="You order about {value} service vouchers a month", label_zero="You don't order service vouchers",
                                      evidence="Service voucher orders in KBC Mobile", editable=False, type="count", source=SVC),
     "billit_overdue_invoices": dict(label="{value} of your invoices in Billit are overdue", label_zero="None of your Billit invoices are overdue",
@@ -170,16 +170,13 @@ EDITABLE = {k: v for k, v in CATALOGUE.items() if v["editable"]}
 CARD_GROUP = {"diy_building_spend_12m": "diy_building_spend_3m", "parking_city_changed_90d": "parking_sessions_90d",
               "billit_overdue_amount": "billit_overdue_invoices", **{c: "cohort" for c in COHORT_FEATURES}}
 
-SIGNALS_NOT_USED = [
-    "Health: payments to hospitals, doctors, pharmacies or health insurers",
-    "Pregnancy or births (a birth can only be declared by you)",
-    "Religion or donations to religious organisations",
-    "Trade-union membership fees",
-    "Ethnicity, nationality or origin",
-    "Political opinions or party donations",
-    "Sexual orientation or relationships",
-    "Gender",
-] + [f"{name} ({what}): available in KBC Mobile, never used as a signal" for _, name, what in NOT_USED_SERVICES]
+
+
+def signals_not_used(lang: str = "en") -> list[str]:
+    lang = i18n.norm(lang)
+    what = i18n.ui.NOT_USED_WHAT.get(lang, {})
+    return list(i18n.ui.SIGNALS_NOT_USED[lang]) + [
+        i18n.ui.NOT_USED_SERVICE[lang].format(name=name, what=what.get(sid, w)) for sid, name, w in NOT_USED_SERVICES]
 
 MONTH_NAMES = {
     1: ["january", "jan", "januari", "janvier", "janv"], 2: ["february", "feb", "februari", "février", "fevrier", "févr"],
@@ -199,54 +196,61 @@ class ValidationError(ValueError):
 # ----------------------------------------------------------------------------------------------
 # Formatting helpers
 # ----------------------------------------------------------------------------------------------
-def month_label(ym: str) -> str:
-    y, m = ym.split("-")
-    return f"{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][int(m) - 1]} {y}"
+def month_label(ym: str, lang: str = "en") -> str:
+    return i18n.month_label(ym, lang)
 
 
-def shift_month(months: float, ahead: bool) -> str:
+def shift_month(months: float, ahead: bool, lang: str = "en") -> str:
     """Calendar month N months after (ahead) or before (ago) 1 Oct 2026."""
     idx = 2026 * 12 + 9 + (int(round(months)) if ahead else -int(round(months)))
-    return month_label(f"{idx // 12}-{idx % 12 + 1:02d}")
+    return month_label(f"{idx // 12}-{idx % 12 + 1:02d}", lang)
 
 
 def is_null(v) -> bool:
     return v is None or (isinstance(v, float) and math.isnan(v))
 
 
-def eur(v: float, signed=False) -> str:
-    s = f"€{abs(v):,.0f}"
-    return ("+" if v >= 0 else "−") + s if signed else ("−" + s if v < 0 else s)
+def eur(v: float, signed=False, lang: str = "en") -> str:
+    return i18n.eur(v, lang, signed)
 
 
-def fmt_value(feature: str, v) -> str:
+def fmt_value(feature: str, v, lang: str = "en") -> str:
     c = CATALOGUE[feature]
     t = c["type"]
     if is_null(v):
         return "—"
     if t == "amount":
-        return eur(v, c.get("signed", False))
+        return eur(v, c.get("signed", False), lang)
     if t == "ratio":
-        return f"{v * 100:.0f}%"
+        return i18n.pct(v, lang)
     if t == "months":
         n = int(round(v))
         if c.get("when") == "ahead":
-            return "now" if n == 0 else f"in {n} month{'s' * (n != 1)} ({shift_month(n, True)})"
-        return "this month" if n == 0 else f"{n} month{'s' * (n != 1)} ago ({shift_month(n, False)})"
+            return i18n.t("months.now", lang) if n == 0 else i18n.t(
+                "months.ahead", lang, n=i18n.plural(n, "month", lang), month=shift_month(n, True, lang))
+        return i18n.t("months.this_month", lang) if n == 0 else i18n.t(
+            "months.ago", lang, n=i18n.plural(n, "month", lang), month=shift_month(n, False, lang))
     if t == "years":
         n = int(round(v))
-        return "less than a year" if n == 0 and feature == "car_age_years" else f"{n} year{'s' * (n != 1)}"
+        return i18n.t("years.lt1", lang) if n == 0 and feature == "car_age_years" else i18n.plural(n, "year", lang)
     if t == "count":
-        return f"{int(round(v))}"
+        return i18n.number(round(v), lang)
     if t == "bool":
-        return "yes" if v else "no"
+        return i18n.t("yes" if v else "no", lang)
     if t == "choice":
-        return EMPLOYMENT_LABELS.get(v, str(v))
+        return i18n.t(f"emp.{v}", lang) if v in EMPLOYMENT else str(v)
     return str(v)
 
 
-def sentence(feature: str, v, ctx: dict) -> str:
+def texts(feature: str, lang: str = "en") -> dict:
+    """The catalogue entry with its labels and evidence in the customer's language."""
     c = CATALOGUE[feature]
+    lang = i18n.norm(lang)
+    return c if lang == "en" else {**c, **i18n.features.TEXT.get(lang, {}).get(feature, {})}
+
+
+def sentence(feature: str, v, ctx: dict, lang: str = "en") -> str:
+    c = texts(feature, lang)
     if feature == "cohort":
         return c["label"].format(cohort=ctx["cohort"])
     if is_null(v) and "label_null" in c:
@@ -255,7 +259,20 @@ def sentence(feature: str, v, ctx: dict) -> str:
         return _safe_format(c["label"] if v else c["label_false"], ctx)
     if not is_null(v) and v == 0 and "label_zero" in c:
         return c["label_zero"]
-    return _safe_format(c["label"], {**ctx, "value": fmt_value(feature, v)})
+    if not is_null(v) and v == 1 and "label_one" in c:
+        return c["label_one"]
+    return _safe_format(c["label"], {**ctx, "value": fmt_value(feature, v, lang)})
+
+
+def cohort_text(age, household_size, region: str, lang: str = "en") -> str:
+    lang = i18n.norm(lang)
+    a, h = int(np.digitize(age, AGE_EDGES)), int(np.digitize(household_size, HH_EDGES))
+    return i18n.t("cohort", lang, age=AGE_BAND_LABELS[a], household=i18n.ui.HOUSEHOLD_BANDS[lang][h],
+                  region=i18n.ui.REGIONS[lang][region])
+
+
+def housing_of(v: dict) -> str:
+    return "owner" if v.get("owns_home") else "tenant" if v.get("renting") else "with_parents"
 
 
 # ----------------------------------------------------------------------------------------------
@@ -382,9 +399,19 @@ class Engine:
         return base
 
     def session(self, uid: int) -> dict:
-        return self.sessions.setdefault(uid, {"overrides": {}, "implied": {}, "confirmed": [], "declared": {},
-                                              "card_order": [], "actions": {}, "seq": 0, "ignored": {},
-                                              "service_updates": {}})
+        return self.sessions.setdefault(uid, session_store.new())
+
+    def run(self, uid: int, blob: dict | None, fn):
+        """Run fn() against the customer's client-held session. Returns (fn(), the updated session blob).
+
+        Sessions live in the browser: every request brings its session and gets the new one back, so the engine
+        stays stateless (safe on serverless, and one visitor never sees another's corrections)."""
+        with self.lock:
+            self.sessions[uid] = session_store.load(blob, uid)
+            try:
+                return fn(), session_store.dump(self.sessions[uid], uid)
+            finally:
+                self.sessions.pop(uid, None)
 
     # --- feature vector -------------------------------------------------------------------------
     def values(self, uid: int) -> dict:
@@ -428,7 +455,7 @@ class Engine:
         return {m: float(r) for m, r in zip(MOMENTS, self.nb_y[idx].mean(0))}
 
     # --- state ------------------------------------------------------------------------------------
-    def predictions(self, uid: int, v: dict, scored: dict) -> list[dict]:
+    def predictions(self, uid: int, v: dict, scored: dict, lang: str = "en") -> list[dict]:
         s = self.session(uid)
         region = REGIONS.index(v["region"])
         cell = int(cohort_cell(v["age"], v["household_size"], region))
@@ -439,20 +466,22 @@ class Engine:
             d = s["declared"].get(m)
             prob = p_model if d is None else (0.95 if d["month"] else min(0.05, p_model))
             preds.append({
-                "moment": m, "label": MOMENT_LABELS[m], "probability": prob, "model_probability": p_model,
+                "moment": m, "label": MOMENT_LABELS[m], "label_local": i18n.ui.MOMENTS[i18n.norm(lang)][m],
+                "probability": prob, "model_probability": p_model,
                 "cohort_rate": float(self.cohort_rates[cell, j]), "neighbour_rate": nb[m],
                 "declared": d is not None, "declared_month": d["month"] if d else None,
-                "declared_label": _declared_label(d) if d else None,
+                "declared_label": _declared_label(d, lang) if d else None,
             })
         if "birth" in s["declared"]:
             d = s["declared"]["birth"]
-            preds.append({"moment": "birth", "label": MOMENT_LABELS["birth"], "probability": 0.95 if d["month"] else 0.05,
+            preds.append({"moment": "birth", "label": MOMENT_LABELS["birth"],
+                          "label_local": i18n.ui.MOMENTS[i18n.norm(lang)]["birth"], "probability": 0.95 if d["month"] else 0.05,
                           "model_probability": None, "cohort_rate": None, "neighbour_rate": None, "declared": True,
-                          "declared_month": d["month"], "declared_label": _declared_label(d), "not_predicted": True})
+                          "declared_month": d["month"], "declared_label": _declared_label(d, lang), "not_predicted": True})
         preds.sort(key=lambda p: -p["probability"])
         return preds
 
-    def cards(self, uid: int, v: dict, scored: dict, n: int = 5) -> list[dict]:
+    def cards(self, uid: int, v: dict, scored: dict, n: int = 5, lang: str = "en", include=()) -> list[dict]:
         s = self.session(uid)
         groups: dict[str, list[int]] = {}
         for i, f in enumerate(MODEL_FEATURES):
@@ -466,7 +495,7 @@ class Engine:
             effects[g] = pts
         ranked = sorted(effects, key=lambda g: -sum(abs(x) for x in effects[g].values()))
         pinned = set(s["overrides"]) | set(s["confirmed"])
-        chosen = set(ranked[:n]) | pinned
+        chosen = set(ranked[:n]) | pinned | set(include)
         # Keep the order stable within a session so a corrected card doesn't jump away.
         order = [g for g in s["card_order"] if g in chosen] + [g for g in ranked if g in chosen and g not in s["card_order"]]
         s["card_order"] = order
@@ -474,47 +503,58 @@ class Engine:
         b = self.base(uid)
         txns = evidence.transactions(uid, b["monthly"], b["profile"], b["features"])
         region = REGIONS.index(v["region"])
-        ctx = self._context(uid, v, txns)
-        ctx["cohort"] = cohort_label(v["age"], v["household_size"], region)
+        lang = i18n.norm(lang)
+        ctx = self._context(uid, v, txns, lang)
+        ctx["cohort"] = cohort_text(v["age"], v["household_size"], v["region"], lang)
+        moment_names = i18n.ui.MOMENTS[lang]
         out = []
         for g in chosen:
-            c = CATALOGUE[g]
+            c = texts(g, lang)
             value = None if g == "cohort" else v[g]
             ex = []
             if g == "billit_overdue_invoices":
                 inv = mock.invoices_for(uid, v.get("billit_overdue_invoices"), v.get("billit_overdue_amount"))
-                ex = [{"date": i["due"], "merchant": f"{i['client']} · {i['number']} · {i['days_overdue']} days overdue",
+                ex = [{"date": i["due"], "merchant": i18n.t("invoice.overdue", lang, client=i["client"], number=i["number"],
+                                                           days=i["days_overdue"]),
                        "amount": i["amount"]} for i in inv[:3]]
             if "examples" in c:
                 cat, months, largest = c["examples"]
                 ex = evidence.examples(txns, cat, months, n=3, largest=largest)
                 k = len([t for t in txns if t["category"] == cat and (months is None or t["date"] >= OBS_MONTHS[-months])])
-                ctx["n_payments"] = f"{k} payment{'s' * (k != 1)}"
+                ctx["n_payments"] = i18n.plural(k, "payment", lang)
             if c["type"] == "months" and not is_null(value):
-                ctx["when_month"] = shift_month(value, c.get("when") == "ahead")
+                ctx["when_month"] = shift_month(value, c.get("when") == "ahead", lang)
             ev = c.get("evidence_false") if c["type"] == "bool" and not value and "evidence_false" in c else c["evidence"]
             if g == "cohort":
-                cell = int(cohort_cell(v["age"], v["household_size"], region))
-                ev_text = ev + ": " + ", ".join(f"{MOMENT_LABELS[m].lower()} {self.cohort_rates[cell, j]:.0%}"
+                cell = int(cohort_cell(v["age"], v["household_size"], REGIONS.index(v["region"])))
+                ev_text = ev + ": " + ", ".join(f"{moment_names[m].lower()} {i18n.pct(self.cohort_rates[cell, j], lang)}"
                                                 for j, m in enumerate(MOMENTS))
             else:
-                ev_text = _safe_format(ev, ctx) if not (is_null(value) and "label_null" in c) else "Nothing on file"
+                ev_text = _safe_format(ev, ctx) if not (is_null(value) and "label_null" in c) else i18n.t("nothing_on_file", lang)
             status = "overridden" if g in s["overrides"] else "confirmed" if g in s["confirmed"] else (
                 "implied" if g in s["implied"] else "inferred")
             base_value = None if g == "cohort" else self.base_value(uid, g)
+            source = TOLD if status in ("overridden", "implied") else c["source"]
             out.append({
-                "feature": g, "sentence": sentence(g, value, ctx),
+                "feature": g, "sentence": sentence(g, value, ctx, lang),
                 "evidence": {"text": ev_text, "transactions": ex},
-                "value": _json_val(value), "value_display": "" if g == "cohort" else fmt_value(g, value),
-                "original_display": fmt_value(g, base_value) if status in ("overridden", "implied") else None,
+                "value": _json_val(value), "value_display": "" if g == "cohort" else fmt_value(g, value, lang),
+                "original_display": fmt_value(g, base_value, lang) if status in ("overridden", "implied") else None,
                 "type": c["type"], "editable": c["editable"], "min": c.get("min"), "max": c.get("max"),
                 "unit": c.get("unit"), "options": c.get("options"), "nullable": c.get("nullable", False),
-                "source": TOLD if status in ("overridden", "implied") else c["source"], "status": status,
+                "source": i18n.t(f"source.{source}", lang), "source_key": source, "status": status,
                 "effects": sorted(
-                    [{"moment": m, "label": MOMENT_LABELS[m], "pts": round(p, 1)} for m, p in effects[g].items()
+                    [{"moment": m, "label": moment_names[m], "pts": round(p, 1)} for m, p in effects[g].items()
                      if abs(p) >= 0.5], key=lambda e: -abs(e["pts"])),
             })
         return out
+
+    def card(self, uid: int, feature: str, lang: str = "en") -> dict | None:
+        """One assumption card, even if it isn't among the customer's top cards."""
+        with self.lock:
+            v = self.values(uid)
+            return next((c for c in self.cards(uid, v, self.score(v), lang=lang, include={feature})
+                         if c["feature"] == feature), None)
 
     def contribution_pts(self, uids: list[int], moment: str, feature: str) -> np.ndarray:
         """Percentage points one feature adds to one moment, for several customers at once."""
@@ -528,41 +568,52 @@ class Engine:
         b = self.base(uid)
         return b["profile"].get(feature, b["features"].get(feature))
 
-    def _context(self, uid: int, v: dict, txns: list) -> dict:
+    def _context(self, uid: int, v: dict, txns: list, lang: str = "en") -> dict:
         b = self.base(uid)
         inc = b["monthly"]["income"]
         bal = b["monthly"]["balance"]
         emp = b["profile"]["employment_type"]
-        income_evidence = {
-            "employee": f"Average of 12 salary credits from {b['profile']['employer_name']}",
-            "self_employed": "Average of 12 months of business income",
-            "retired": "Average of 12 pension payments", "student": "Average of 12 months of student-job income",
-        }[emp]
+        city = i18n.journeys.city
         ctx = {
-            "income_evidence": income_evidence, "inc_min": eur(min(inc)), "inc_max": eur(max(inc)),
-            "min_month": month_label(OBS_MONTHS[int(np.argmin(bal))]),
-            "fixed_amount": eur(v["fixed_cost_ratio"] * v["net_income_monthly"]), "n_payments": "No payments",
-            "diy_12m": eur(v["diy_building_spend_12m"]), "city": v["city"],
-            "parking_city": v.get("parking_city_recent") or v["city"],
-            "billit_amount": eur(v.get("billit_overdue_amount") or 0),
+            "income_evidence": i18n.t(f"income_evidence.{emp}", lang, employer=b["profile"]["employer_name"]),
+            "inc_min": eur(min(inc), lang=lang), "inc_max": eur(max(inc), lang=lang),
+            "min_month": month_label(OBS_MONTHS[int(np.argmin(bal))], lang),
+            "fixed_amount": eur(v["fixed_cost_ratio"] * v["net_income_monthly"], lang=lang),
+            "n_payments": i18n.plural(0, "payment", lang),
+            "diy_12m": eur(v["diy_building_spend_12m"], lang=lang), "city": city(v["city"], lang),
+            "parking_city": city(v.get("parking_city_recent") or v["city"], lang),
+            "billit_amount": eur(v.get("billit_overdue_amount") or 0, lang=lang),
         }
-        if v.get("parking_city_changed_90d"):
-            ctx["parking_evidence"] = (f"4411 sessions paid in KBC Mobile: most of them in {ctx['parking_city']}, "
-                                       f"not in {v['city']} where you live")
-        else:
-            ctx["parking_evidence"] = f"4411 parking sessions paid in KBC Mobile, mostly in {ctx['parking_city']}"
+        key = "parking_evidence.changed" if v.get("parking_city_changed_90d") else "parking_evidence.home"
+        ctx["parking_evidence"] = i18n.t(key, lang, parking_city=ctx["parking_city"], city=ctx["city"])
         for f, key in (("lease_end_months", "lease_start"),):
             if not is_null(v.get(f)):
-                ctx[key] = shift_month(36 - v[f], False)
+                ctx[key] = shift_month(36 - v[f], False, lang)
         if not is_null(v.get("car_age_years")):
             ctx["car_year"] = str(2026 - int(v["car_age_years"]))
         return ctx
 
-    def _svc_ctx(self, uid: int) -> dict:
+    def _svc_ctx(self, uid: int, v: dict | None = None, p_cash: float | None = None) -> dict:
         b = self.base(uid)
-        return mock.context(uid, b["profile"], self.values(uid), self.session(uid))
+        v = v or self.values(uid)
+        ctx = mock.context(uid, b["profile"], v, self.session(uid))
+        if p_cash is None:
+            p_cash = self._probs(uid).get("cash_squeeze", 0.0)
+        ctx["suggested_buffer"] = forecast.project(b["monthly"], v, p_cash)["suggested_buffer"]
+        return ctx
 
-    def state(self, uid: int) -> dict:
+    def forecast(self, uid: int, lang: str = "en", buffer_monthly: float | None = None) -> dict:
+        """Balance outlook for the coming months (with the customer's buffer plan, or a what-if amount)."""
+        b = self.base(uid)
+        s = self.session(uid)
+        plan = s["plans"].get("buffer_monthly") if buffer_monthly is None else buffer_monthly
+        return forecast.project(b["monthly"], self.values(uid), self._probs(uid).get("cash_squeeze", 0.0),
+                                buffer_monthly=plan, lang=lang)
+
+    def state(self, uid: int, lang: str = "en") -> dict:
+        """Everything the app and the under-the-hood panel show for one customer. Customer-facing text is in
+        `lang`; rules and orchestrator reasons stay in English (they're for the jury)."""
+        lang = i18n.norm(lang)
         with self.lock:
             v = self.values(uid)
             scored = self.score(v)
@@ -570,52 +621,60 @@ class Engine:
             s = self.session(uid)
             prof = {**b["profile"], **{k: v[k] for k in ("age", "household_size", "n_children", "owns_home",
                                                            "renting", "employment_type")}}
-            preds = self.predictions(uid, v, scored)
-            cards = self.cards(uid, v, scored)
+            prof["housing"] = housing_of(v)
+            preds = self.predictions(uid, v, scored, lang)
+            cards = self.cards(uid, v, scored, lang=lang)
             probs = {p["moment"]: p["probability"] for p in preds if p["moment"] in MOMENTS}
             svc_ctx = mock.context(uid, prof, v, s)
-            js = journeys.build(v, probs, s["declared"], prof, svc_ctx)
-            ctx = self._context(uid, v, [])
+            outlook = forecast.project(b["monthly"], v, probs["cash_squeeze"], s["plans"].get("buffer_monthly"), lang)
+            svc_ctx["suggested_buffer"] = outlook["suggested_buffer"]
+            js = journeys.build(v, probs, s["declared"], prof, svc_ctx, lang)
+            ctx = self._context(uid, v, [], lang)
             rejected = [f for f in list(s["overrides"]) + list(s["implied"]) if f in CATALOGUE]
             baseline = None
             if rejected:  # what Kate would have offered without the corrections, to explain suppressions
                 bv = {**{k: b["profile"][k] for k in ("age", "household_size", "n_children", "owns_home", "renting",
                                                         "employment_type", "region", "city")}, **b["features"], **s["service_updates"]}
                 bprobs = {m: float(sigmoid(x["logit"])) for m, x in self.score(bv).items()}
-                baseline = journeys.build(bv, bprobs, s["declared"], b["profile"], svc_ctx)
-            kate = orchestrator.plan(js, s, {f: sentence(f, self.base_value(uid, f), ctx) for f in rejected}, baseline)
+                baseline = journeys.build(bv, bprobs, s["declared"], b["profile"], svc_ctx, lang)
+            kate = orchestrator.plan(js, s, {f: sentence(f, self.base_value(uid, f), ctx, lang) for f in rejected}, baseline)
             return {
-                "user_id": uid,
+                "user_id": uid, "lang": lang,
                 "profile": {k: _json_val(x) for k, x in prof.items()},
                 "plate": svc_ctx["plate"],
-                "chart": {"months": [month_label(m) for m in OBS_MONTHS], **b["monthly"]},
+                "chart": {"months": [month_label(m, lang) for m in OBS_MONTHS], **b["monthly"]},
+                "forecast": outlook,
                 "predictions": preds,
                 "cards": cards,
                 "journeys": js,
                 "kate": kate,
-                "actions": sorted(s["actions"].values(), key=lambda a: -int(a["id"][1:])),
-                "overrides": [{"feature": f, "sentence": sentence(f, x, ctx) if f != "cohort" else "",
-                               "value_display": fmt_value(f, x), "original_display": fmt_value(f, self.base_value(uid, f))}
+                "opener": orchestrator.pick_opener(kate),
+                "actions": [mock.for_display(a) for a in sorted(s["actions"].values(), key=lambda a: -int(a["id"][1:]))],
+                "plans": dict(s["plans"]),
+                "overrides": [{"feature": f, "sentence": sentence(f, x, ctx, lang) if f != "cohort" else "",
+                               "value_display": fmt_value(f, x, lang),
+                               "original_display": fmt_value(f, self.base_value(uid, f), lang)}
                               for f, x in s["overrides"].items()],
                 "confirmed": list(s["confirmed"]),
-                "declared": [{"event": e, "label": MOMENT_LABELS[e], **d} for e, d in s["declared"].items()],
+                "declared": [{"event": e, "label": i18n.ui.MOMENTS[lang][e], **d} for e, d in s["declared"].items()],
                 "ignored": dict(s["ignored"]),
-                "signals_not_used": SIGNALS_NOT_USED,
+                "signals_not_used": signals_not_used(lang),
                 "model": {"auc": self.meta["auc"], "n_customers": self.n_customers},
             }
 
     # --- service actions (simulated integrations) ----------------------------------------------
-    def prepare_action(self, uid: int, service: str, action: str, params: dict | None = None) -> dict:
+    def prepare_action(self, uid: int, service: str, action: str, params: dict | None = None, lang: str = "en") -> dict:
         """Kate (or a help item) prepares an action. Nothing is executed until the customer confirms."""
         with self.lock:
             s = self.session(uid)
             try:
-                card = mock.prepare(str(service), str(action), params or {}, self._svc_ctx(uid), s["seq"] + 1)
+                card = mock.prepare(str(service), str(action), params or {}, self._svc_ctx(uid), s["seq"] + 1,
+                                    i18n.norm(lang))
             except mock.ActionError as e:
                 raise ValidationError(str(e)) from None
             s["seq"] += 1
             s["actions"][card["id"]] = card
-            return {"card": card, "state": self.state(uid), "diff": []}
+            return {"card": card, "diff": []}
 
     def confirm_action(self, uid: int, action_id: str) -> dict:
         """Executes a prepared action. Only ever called from the customer's tap in the UI."""
@@ -633,13 +692,18 @@ class Engine:
                 for other in s["actions"].values():
                     if other["result"].get("session_id") == card["params"]["session_id"] and other is not card:
                         other["result"]["stopped"] = True
+            if card["service"] == "buffer":  # a plan, not a model signal: it only changes the outlook
+                if card["action"] == "start":
+                    s["plans"]["buffer_monthly"] = float(card["params"]["amount"])
+                else:
+                    s["plans"].pop("buffer_monthly", None)
             effect = SIGNAL_EFFECTS.get((card["service"], card["action"]))
             if effect and not (card["service"] == "registered_email" and card["params"].get("template") != "lease_termination"):
                 f, op, val = effect
                 cur = self.values(uid).get(f)
                 s["service_updates"][f] = (0 if is_null(cur) else cur) + val if op == "inc" else val
             after = self._probs(uid)
-            return {"card": card, "state": self.state(uid), "diff": self._diff(before, after)}
+            return {"card": mock.for_display(card), "diff": self._diff(before, after)}
 
     def cancel_action(self, uid: int, action_id: str) -> dict:
         with self.lock:
@@ -647,7 +711,7 @@ class Engine:
             if card is None or card["status"] != "prepared":
                 raise ValidationError(f"No prepared action '{action_id}' to cancel.")
             card["status"] = "cancelled"
-            return {"card": card, "state": self.state(uid), "diff": []}
+            return {"card": card, "diff": []}
 
     def ignore_topic(self, uid: int, moment: str) -> dict:
         """The customer waved away a Kate conversation: pause that topic for 60 days."""
@@ -655,7 +719,7 @@ class Engine:
             if moment not in MOMENTS:
                 raise ValidationError(f"Unknown moment '{moment}'.")
             self.session(uid)["ignored"][moment] = orchestrator.pause_until()
-            return {"state": self.state(uid), "diff": []}
+            return {"diff": [], "change": {"moment": moment, "paused_until": orchestrator.pause_until()}}
 
     # --- mutations ----------------------------------------------------------------------------
     def _probs(self, uid: int) -> dict:
@@ -663,12 +727,13 @@ class Engine:
         scored = self.score(v)
         return {p["moment"]: p["probability"] for p in self.predictions(uid, v, scored)}
 
-    def _diff(self, before: dict, after: dict) -> list[dict]:
-        return [{"moment": m, "label": MOMENT_LABELS[m], "before": before.get(m), "after": after.get(m)}
+    def _diff(self, before: dict, after: dict, lang: str = "en") -> list[dict]:
+        names = i18n.ui.MOMENTS[i18n.norm(lang)]
+        return [{"moment": m, "label": names.get(m, m), "before": before.get(m), "after": after.get(m)}
                 for m in dict.fromkeys(list(before) + list(after))
                 if before.get(m) is None or after.get(m) is None or abs(before[m] - after[m]) >= 0.0005]
 
-    def override(self, uid: int, feature: str, value) -> dict:
+    def override(self, uid: int, feature: str, value, lang: str = "en") -> dict:
         with self.lock:
             clean = validate(feature, value)
             before = self._probs(uid)
@@ -681,9 +746,10 @@ class Engine:
             if feature in s["confirmed"]:
                 s["confirmed"].remove(feature)
             after = self._probs(uid)
-            return {"state": self.state(uid), "diff": self._diff(before, after),
-                    "change": {"feature": feature, "from": fmt_value(feature, old[feature]), "to": fmt_value(feature, clean),
-                               "sentence": sentence(feature, clean, {})}}
+            ctx = self._context(uid, self.values(uid), [], lang)
+            return {"diff": self._diff(before, after, lang),
+                    "change": {"feature": feature, "from": fmt_value(feature, old[feature], lang),
+                               "to": fmt_value(feature, clean, lang), "sentence": sentence(feature, clean, ctx, lang)}}
 
     def confirm(self, uid: int, feature: str) -> dict:
         with self.lock:
@@ -692,9 +758,9 @@ class Engine:
             s = self.session(uid)
             if feature not in s["confirmed"]:
                 s["confirmed"].append(feature)
-            return {"state": self.state(uid), "diff": [], "change": {"feature": feature, "confirmed": True}}
+            return {"diff": [], "change": {"feature": feature, "confirmed": True}}
 
-    def declare(self, uid: int, event: str, month) -> dict:
+    def declare(self, uid: int, event: str, month, lang: str = "en") -> dict:
         with self.lock:
             event = str(event).strip().lower()
             if event not in DECLARABLE_EVENTS or event == "cash_squeeze":
@@ -704,14 +770,13 @@ class Engine:
             before = self._probs(uid)
             self.session(uid)["declared"][event] = {"month": ym}
             after = self._probs(uid)
-            return {"state": self.state(uid), "diff": self._diff(before, after),
-                    "change": {"event": event, "month": ym}}
+            return {"diff": self._diff(before, after, lang), "change": {"event": event, "month": ym}}
 
     def reset(self, uid: int) -> dict:
         with self.lock:
             before = self._probs(uid)
-            self.sessions.pop(uid, None)
-            return {"state": self.state(uid), "diff": self._diff(before, self._probs(uid))}
+            self.sessions[uid] = session_store.new()
+            return {"diff": self._diff(before, self._probs(uid))}
 
 
 def _implied(feature: str, value, old: dict, overrides: dict) -> dict:
@@ -753,8 +818,9 @@ def _implied(feature: str, value, old: dict, overrides: dict) -> dict:
     return {k: x for k, x in imp.items() if k not in overrides}
 
 
-def _declared_label(d: dict) -> str:
-    return f"Told by you: {month_label(d['month'])}" if d["month"] else "Told by you: not planned"
+def _declared_label(d: dict, lang: str = "en") -> str:
+    return i18n.t("declared.month", lang, month=month_label(d["month"], lang)) if d["month"] else i18n.t(
+        "declared.not_planned", lang)
 
 
 def _safe_format(template: str, ctx: dict) -> str:

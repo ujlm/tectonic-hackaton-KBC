@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kate Pulse</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap">
+<style>
+:root{--navy:#0E3A66;--navy2:#1C5C96;--blue:#0097DB;--blue-soft:#E3F3FB;--bg:#F3F6F9;--muted:#6B7C8F;--line:#E1E7EE;--text:#14304F}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Nunito Sans","Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding:48px 20px 64px;display:grid;gap:28px}
+.hero{background:linear-gradient(110deg,var(--navy),var(--navy2));color:#fff;border-radius:18px;padding:36px;display:grid;gap:14px}
+.hero h1{margin:0;font-size:clamp(28px,4.5vw,44px);font-weight:900;line-height:1.1;text-wrap:balance}
+.hero p{margin:0;font-size:18px;opacity:.9;max-width:60ch}
+.rule{font-weight:800;font-size:20px}
+.links{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.links a{background:#fff;color:var(--navy);text-decoration:none;font-weight:800;padding:12px 18px;border-radius:10px}
+.links a.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.5)}
+h2{margin:0;color:var(--navy);font-size:22px}
+.qs{display:grid;gap:12px}
+.q{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;grid-template-columns:44px 1fr;gap:14px}
+.q .n{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--navy);display:grid;place-items:center;font-weight:900}
+.q b{display:block;color:var(--navy);font-size:16px;margin-bottom:4px}
+.q p{margin:0;color:var(--muted);font-size:14.5px}
+.q small{display:block;margin-top:8px;font-size:12.5px;color:var(--blue);font-weight:700}
+.foot{text-align:center;color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section class="hero">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.06em;opacity:.8">TECTONIC HACKATHON 2026 · KBC CHALLENGE</div>
+    <h1>Kate Pulse: a bank that notices, asks, and then stays quiet</h1>
+    <p>One living picture of each customer, confirmed by the customer, used everywhere: in the app, in the advisor’s meeting, and across 2.3M customers to decide what KBC builds next.</p>
+    <p class="rule">Act when sure. Ask when unsure. Stay silent otherwise.</p>
+    <div class="links"><a href="app/index.html">Open the customer app</a><a href="insights/index.html">Open Pulse Insights</a><a class="ghost" href="README.md">README</a></div>
+  </section>
+
+  <section class="qs">
+    <h2>How we answer KBC’s five questions</h2>
+    <div class="q"><span class="n">1</span><div><b>What signals help us understand what customers need?</b><p>Four layers: what customers tell us (one-tap check-ins, “not for me”), what their money shows, how they use KBC, and context such as product gaps and deadlines. At the macro level, big data shows what 2.3M customers do and Conveo interviews explain why.</p><small>App → Sarah → Why this · Insights → Ask why</small></div></div>
+    <div class="q"><span class="n">2</span><div><b>How are customers recognised by situation, behaviour and intent?</b><p>Signals add up to a life moment with a confidence score. At 62% Kate asks; after one tap she is 92% sure and acts. Intent is confirmed, not guessed, and the advisor sees what is confirmed versus inferred.</p><small>App → Sarah steps 1–2 · KBC → Advisor brief</small></div></div>
+    <div class="q"><span class="n">3</span><div><b>How do experiences adapt automatically?</b><p>Content ranked by cost to this customer, timing at their learned moment within a weekly attention budget, and a layout learned from behaviour, never from age. Every “not now” or “not for me” changes what comes next.</p><small>App → switch between Sarah and Jos · My picture</small></div></div>
+    <div class="q"><span class="n">4</span><div><b>How does it work across products, services and channels?</b><p>One customer picture feeds the app card, push, Kate chat, voice read-aloud and the advisor. Journeys cross products: mortgage, home insurance, income protection, shared account. Nobody asks the customer twice.</p><small>App → Moving plan → Book Els · Advisor brief</small></div></div>
+    <div class="q"><span class="n">5</span><div><b>How do we create impact for millions at once?</b><p>Three speeds: real-time for risky payments, nightly batch for life moments, precomputed cards on app open. The engine scores all 2.3M customers in about 8 seconds on one laptop core; only ~3% get a message, so writing them costs about €40 a night. Guardrails for consent, fairness and advice.</p><small>App → KBC → Scale · node engine/bench.js</small></div></div>
+  </section>
+  <p class="foot">Hackathon concept. Not a KBC product. All customer data is synthetic.</p>
+</main>
+</body>
+</html>

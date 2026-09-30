@@ -1,0 +1,13 @@
+{
+  "name": "kate-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kate Pulse: a hackathon prototype for the KBC challenge at Tectonic Hackathon 2026",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "engine": "node engine/engine.js",
+    "bench": "node engine/bench.js",
+    "voice": "node voice/generate.js"
+  },
+  "license": "MIT"
+}

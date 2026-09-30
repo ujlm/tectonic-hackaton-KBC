@@ -1,0 +1,13 @@
+{
+  "_note": "Voice-over for the <3 min demo video. Each segment matches a demo step. ~150 words per minute.",
+  "segments": [
+    { "id": "01-intro", "screen": "App · Sarah · Kate chat", "text": "Today, Kate mostly waits for a question, or pushes offers that look like everyone else's. We built Pulse: a Kate that notices, asks, and then stays quiet. Act when sure. Ask when unsure. Stay silent otherwise." },
+    { "id": "02-ask", "screen": "App · Sarah · step 1", "text": "Meet Sarah, thirty-one. She paid a notary deposit and opened the mortgage simulator four times. Our engine is sixty-two percent sure she's buying a home. Not sure enough to act. So Kate asks one question, on Sunday evening, when Sarah usually opens the app." },
+    { "id": "03-plan", "screen": "App · Sarah · steps 2 to 6", "text": "She taps yes, and confidence jumps to ninety-two percent. Instead of a feed, she gets one card: her moving plan, ranked by what it would cost her, not by what we sell. At the top, a blindspot: if one of them can't work, the mortgage payment stays. Home insurance takes two minutes, prefilled from her mortgage file." },
+    { "id": "04-trust", "screen": "App · Sarah · Why this", "text": "Every card explains itself. Sarah sees each signal Kate used, and can switch any of them off. When she says not for me, Kate learns, and doesn't ask again." },
+    { "id": "05-jos", "screen": "App · Jos", "text": "Same engine, different face. Jos is seventy-six. He never uses the menus and enlarged his text, so Kate learned to show one thing at a time, in big letters, read aloud. When a payment of two thousand four hundred euros to an unknown firm doesn't look like him, Kate pauses it in real time and simply asks. His advisor is always one tap away." },
+    { "id": "06-advisor", "screen": "App · KBC · Advisor brief", "text": "For KBC, the same picture makes every advisor meeting count. Els gets a brief: what Sarah confirmed, what she asked Kate, and what not to bring up." },
+    { "id": "07-insights", "screen": "Insights dashboard · Ask why", "text": "Across two point three million customers, Pulse Insights shows what people do. When forty-one percent say not for me to a shared account, KBC asks why. Conveo runs thirty AI-moderated video interviews in forty-eight hours. The answer: couples want a shared pot, not a joint account. Kate tests it on five percent of couples, and it wins." },
+    { "id": "08-scale", "screen": "App · KBC · Scale, then terminal with node engine/bench.js", "text": "And it scales. Our engine scores all two point three million customers in seconds on one laptop core. Only about three percent get a message, so writing them costs around forty euros a night. Pulse: a bank that notices, asks, and stays quiet." }
+  ]
+}

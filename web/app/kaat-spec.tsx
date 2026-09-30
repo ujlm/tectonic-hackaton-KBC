@@ -241,12 +241,13 @@ function authored(spec: Spec): Spec {
   return { root: spec.root, elements };
 }
 
-export function KaatSpecView({ spec, handlers, bridge, showSpec, trace }: {
+export function KaatSpecView({ spec, handlers, bridge, showSpec, trace, traceText }: {
   spec: Spec;
   handlers: Record<string, (params: Record<string, unknown>) => unknown>;
   bridge: Bridge;
   showSpec: boolean;
-  trace?: { components: number; dropped: unknown[]; ms: number };
+  trace?: { components?: number; dropped?: unknown[]; ms: number; author?: string } & Record<string, unknown>;
+  traceText?: string;
 }) {
   const shown = useMemo(() => (showSpec ? JSON.stringify(authored(spec), null, 1) : ""), [spec, showSpec]);
   return (
@@ -256,7 +257,7 @@ export function KaatSpecView({ spec, handlers, bridge, showSpec, trace }: {
       </JSONUIProvider>
       {showSpec ? (
         <details className="spec">
-          <summary>{TXT[bridge.lang].spec} · {trace?.components ?? "?"} · {trace?.dropped.length ?? 0} dropped · {trace?.ms ?? "?"} ms</summary>
+          <summary>{TXT[bridge.lang].spec} · {trace?.components ?? Object.keys(spec.elements).length} · {trace?.dropped?.length ?? 0} dropped{traceText ? ` · ${traceText}` : ""}</summary>
           <pre>{shown}</pre>
         </details>
       ) : null}

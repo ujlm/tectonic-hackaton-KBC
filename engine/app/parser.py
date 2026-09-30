@@ -20,12 +20,12 @@ T = {
                   "fr": "Merci, « {s} » est confirmé."},
     "which_month": {"en": "In which month do you expect that?", "nl": "In welke maand verwacht je dat?",
                     "fr": "Pour quel mois le prévoyez-vous ?"},
-    "help": {"en": "I'm in offline mode and understand simple corrections, e.g. \"my income is €3,200\", \"my car is 2 years "
-                   "old\", \"we're moving in March\" or \"that's right\".",
-             "nl": "Ik werk offline en begrijp eenvoudige correcties, bv. \"mijn inkomen is €3.200\", \"mijn auto is 2 jaar "
-                   "oud\", \"we verhuizen in maart\" of \"klopt\".",
-             "fr": "Je suis hors ligne et je comprends des corrections simples, p. ex. « mon salaire est de 3 200 € », "
-                   "« ma voiture a 2 ans », « nous déménageons en mars » ou « c'est exact »."},
+    "help": {"en": "I can help with three things: correct what I think about you (\"that's right\", \"we don't rent\"), "
+                   "tell me about plans (\"we're moving in March\"), or prepare a service, like a train ticket or parking.",
+             "nl": "Ik kan je op drie manieren helpen: aanpassen wat ik over je denk (\"klopt\", \"we huren niet\"), "
+                   "plannen noteren (\"we verhuizen in maart\") of een dienst klaarzetten, zoals een treinticket of parkeren.",
+             "fr": "Je peux vous aider de trois façons : corriger ce que je pense de vous (« c'est exact », « nous ne louons pas »), "
+                   "noter vos projets (« nous déménageons en mars ») ou préparer un service, comme un billet de train ou un stationnement."},
     "prepared": {"en": "I've prepared this for you: {summary} Nothing happens until you tap “{button}”.",
                  "nl": "Ik heb dit voor je klaargezet: {summary} Er gebeurt niets tot je op “{button}” tikt.",
                  "fr": "J'ai préparé ceci : {summary} Rien ne se passe tant que vous n'appuyez pas sur « {button} »."},

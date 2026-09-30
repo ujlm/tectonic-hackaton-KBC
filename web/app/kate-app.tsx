@@ -36,7 +36,11 @@ type State = {
   signals_not_used: string[];
 };
 type Showcase = { key: string; label: string; user_id: number; first_name: string; region: string };
-type Trace = { components: number; dropped: unknown[]; ms: number };
+type Trace = {
+  components?: number; dropped?: unknown[]; ms: number; author?: string; reason?: string;
+  calls?: { step: string; model: string; ms: number; inputTokens: number; outputTokens: number; costUsd: number }[];
+  grounding?: { ok: boolean; checked: number; unknown: string[] } | null;
+};
 type Msg = { role: "k" | "u"; text?: string; actions?: string[]; spec?: Spec; trace?: Trace };
 
 // ---------------------------------------------------------------------------------------------
@@ -207,6 +211,16 @@ async function api<R>(path: string, body?: unknown): Promise<R> {
 
 const langForRegion = (region: string): Lang => (region === "Flanders" ? "nl" : "fr");
 
+/** Demo-only: who wrote a Kaat message and what it cost. */
+export function traceLine(tr: Trace): string {
+  const calls = tr.calls ?? [];
+  const tokens = calls.reduce((n, c) => n + c.inputTokens + c.outputTokens, 0);
+  const cost = calls.reduce((n, c) => n + c.costUsd, 0);
+  const g = tr.grounding ? ` · grounding ${tr.grounding.ok ? "ok" : `failed (${tr.grounding.unknown.join(", ")})`}` : "";
+  const who = tr.author ?? "template";
+  return `${who}${calls.length ? ` · ${calls[0].model} · ${calls.length} call(s) · ${tokens} tokens · $${cost.toFixed(4)}` : ""}${g}${tr.reason ? ` · ${tr.reason}` : ""} · ${tr.ms} ms`;
+}
+
 type PictureProps = {
   c: Card; t: (typeof T)[Lang]; detail: Detail; lang: Lang; busy: boolean;
   op: (name: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -297,6 +311,7 @@ export default function KateApp() {
   const [showMore, setShowMore] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [showSpec, setShowSpec] = useState(false);
+  const [llmOn, setLlmOn] = useState(true);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   const t = T[lang];
@@ -351,13 +366,21 @@ export default function KateApp() {
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [tab, uid]);
+  // In the Kaat tab, follow the conversation: show the newest message.
+  useEffect(() => {
+    if (tab !== "kate" || msgs.length < 2) return;
+    const el = mainRef.current;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => el?.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" }));
+  }, [msgs.length, tab]);
 
   const pickCustomer = (id: number, region?: string) => {
     if (region && !langManual) setLang(langForRegion(region));
-    setSt(null);
     setShowMore(false);
     setMsgs([]);
     setTab("home");
+    if (id === uid) return; // same customer: keep the loaded state (clearing it would never reload)
+    setSt(null);
     setUid(id);
   };
 
@@ -403,12 +426,16 @@ export default function KateApp() {
     setBusy(true);
     const before = st?.predictions ?? [];
     try {
-      const r = await api<{ reply: { reply: string; prepared: string[] }; session: unknown; state: State }>("parse", {
-        user_id: uid, session: readSession(uid), lang, message: msg,
+      const res = await fetch("/api/kaat/reply", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_id: uid, session: readSession(uid), lang, depth: detail, message: msg, llm: llmOn,
+          moment: st?.kate.passed[0]?.moment }),
       });
+      const r = (await res.json()) as { spec?: Spec; text?: string; prepared: string[]; session: unknown; state: State; trace: Trace; error?: string };
+      if (!res.ok) throw new Error(r.error ?? `HTTP ${res.status}`);
       writeSession(uid, r.session);
       setSt(r.state);
-      setMsgs((m) => [...m, { role: "k", text: r.reply.reply, actions: r.reply.prepared }]);
+      setMsgs((m) => [...m, { role: "k", spec: r.spec, text: r.spec ? undefined : r.text, actions: r.prepared, trace: r.trace }]);
       const change = describeChange(before, r.state.predictions);
       if (change) flash(change);
     } catch (e) {
@@ -623,8 +650,9 @@ export default function KateApp() {
       <div className="msgs">
         {msgs.map((m, i) => (
           <div key={i} className="turn">
-            {m.spec ? <KaatSpecView spec={m.spec} handlers={handlers} bridge={bridge} showSpec={showSpec} trace={m.trace} /> : null}
+            {m.spec ? <KaatSpecView spec={m.spec} handlers={handlers} bridge={bridge} showSpec={showSpec} trace={m.trace} traceText={m.trace ? traceLine(m.trace) : undefined} /> : null}
             {m.text ? <div className={`msg ${m.role}`}>{m.text}</div> : null}
+            {showSpec && m.role === "k" && !m.spec && m.trace ? <p className="spec">{traceLine(m.trace)}</p> : null}
             {(m.actions ?? []).map((id) => {
               const a = st.actions.find((x) => x.id === id);
               return a ? renderAction(a) : null;
@@ -667,6 +695,7 @@ export default function KateApp() {
               onClick={() => { setLangManual(true); setLang(l); setMsgs([]); }}>{l.toUpperCase()}</button>
           ))}
           <button className={showSpec ? "on" : ""} aria-pressed={showSpec} onClick={() => setShowSpec((v) => !v)}>{"{ }"} {t.spec}</button>
+          <button className={llmOn ? "on" : ""} aria-pressed={llmOn} onClick={() => setLlmOn((v) => !v)}>LLM {llmOn ? "on" : "off"}</button>
         </div>
       </nav>
 

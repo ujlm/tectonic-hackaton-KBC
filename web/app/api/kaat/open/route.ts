@@ -5,7 +5,7 @@
 import type { Spec } from "@json-render/core";
 
 import { enginePost } from "@/lib/engine";
-import { COMPONENTS, type ComponentType } from "@/lib/kaat/catalog";
+import { resolveAndValidate } from "@/lib/kaat/pipeline";
 import { buildSpec, type ContextPack } from "@/lib/kaat/templates";
 
 type Body = { user_id: number; session: unknown; lang: string; depth?: "simple" | "detailed"; moment?: string };
@@ -36,29 +36,4 @@ export async function POST(req: Request) {
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 502 });
   }
-}
-
-function resolveAndValidate(spec: Spec, resolved: Record<string, unknown>) {
-  const elements: Spec["elements"] = {};
-  const dropped: { id: string; type: string; reason: string }[] = [];
-  for (const [id, el] of Object.entries(spec.elements)) {
-    const props = { ...(el.props as Record<string, unknown>) };
-    if (typeof props.ref === "string") {
-      const data = resolved[props.ref];
-      if (data === null || data === undefined) {
-        dropped.push({ id, type: el.type, reason: `unresolved reference ${props.ref}` });
-        continue;
-      }
-      props.data = data;
-    }
-    const def = COMPONENTS[el.type as ComponentType];
-    const ok = def?.props.safeParse(props);
-    if (!ok?.success) {
-      dropped.push({ id, type: el.type, reason: def ? "invalid props" : "unknown component" });
-      continue;
-    }
-    elements[id] = { ...el, props };
-  }
-  for (const el of Object.values(elements)) el.children = (el.children ?? []).filter((c) => c in elements);
-  return { spec: { root: spec.root, elements }, dropped };
 }

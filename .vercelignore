@@ -12,3 +12,5 @@
 engine/tests
 web/e2e
 web/test-results
+**/.venv
+engine/scripts/__pycache__

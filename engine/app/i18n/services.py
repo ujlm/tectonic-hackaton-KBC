@@ -103,6 +103,17 @@ ACTIONS = {
     },
 }
 
+# Services with a descriptive name rather than a brand; brands (Billit, SNCB / NMBS, Q-Park…) stay as they are.
+NAMES = {
+    "en": {},
+    "nl": {"shared_bike": "Deelfietsen", "driving_licence": "Rijbewijs", "service_vouchers": "Dienstencheques",
+           "split_expenses": "Kosten delen", "buffer": "Automatische buffer", "registered_email": "Aangetekende e-mail",
+           "expenses": "Onkosten", "financial_news": "Financieel nieuws"},
+    "fr": {"shared_bike": "Vélos partagés", "driving_licence": "Permis de conduire", "service_vouchers": "Titres-services",
+           "split_expenses": "Partage de frais", "buffer": "Réserve automatique", "registered_email": "E-mail recommandé",
+           "expenses": "Notes de frais", "financial_news": "Actualité financière"},
+}
+
 BUTTONS = {
     "en": {"pay": "Confirm & pay", "send": "Send", "confirm": "Confirm"},
     "nl": {"pay": "Bevestigen en betalen", "send": "Versturen", "confirm": "Bevestigen"},

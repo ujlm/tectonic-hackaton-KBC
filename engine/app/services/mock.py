@@ -13,7 +13,7 @@ import re
 import numpy as np
 
 from .. import i18n
-from ..i18n.services import ACTIONS, BUTTONS, RESULTS, TEMPLATES
+from ..i18n.services import ACTIONS, BUTTONS, NAMES, RESULTS, TEMPLATES
 from .registry import SERVICES, TODAY, Action, needs_confirmation
 
 BIG_CITIES = {"Antwerpen", "Gent", "Brussels", "Ixelles", "Schaerbeek", "Etterbeek", "Uccle", "Anderlecht", "Liège", "Leuven"}
@@ -260,7 +260,7 @@ def prepare(service_id: str, action_id: str, params: dict, ctx: dict, seq: int, 
     if a.costs_money and amount:
         label = f"{button or BUTTONS[lang]['pay']} · {_eur(amount, lang)}"
     return {
-        "id": f"A{seq}", "service": svc.id, "service_name": svc.name, "action": a.id, "action_name": name,
+        "id": f"A{seq}", "service": svc.id, "service_name": NAMES[lang].get(svc.id, svc.name), "action": a.id, "action_name": name,
         "params": v, "summary": confirm.format(**fmt), "price": amount, "price_text": price_text,
         "costs_money": a.costs_money, "sends": a.sends, "needs_confirmation": needs_confirmation(a),
         "button": label, "color": svc.color, "text": svc.text, "status": "prepared", "simulated": True, "result": {},

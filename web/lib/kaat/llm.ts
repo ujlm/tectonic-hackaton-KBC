@@ -19,22 +19,6 @@ export function chatEnabled(): boolean {
   return (process.env.CHAT_ENABLED ?? "true").toLowerCase() !== "false";
 }
 
-// Best-effort per-instance limit on LLM calls per IP (add a Vercel WAF rule for a hard limit).
-const hits = new Map<string, number[]>();
-export function allowCall(ip: string): boolean {
-  const limit = Number(process.env.RATE_LIMIT_PER_MIN ?? 20);
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
-  if (recent.length >= limit) {
-    hits.set(ip, recent);
-    return false;
-  }
-  recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear();
-  return true;
-}
-
 const providerOptions = {
   // Inference stays in the EU; if the gateway can't honour that, the call fails and we use the fallback.
   gateway: { inferenceRegion: { scope: "zone", geoRegion: "eu" } },

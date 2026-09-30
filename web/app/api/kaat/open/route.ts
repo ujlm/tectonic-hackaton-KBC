@@ -5,12 +5,14 @@
 import type { Spec } from "@json-render/core";
 
 import { enginePost } from "@/lib/engine";
+import { forbidden, sameOrigin } from "@/lib/kaat/guard";
 import { resolveAndValidate } from "@/lib/kaat/pipeline";
 import { buildSpec, type ContextPack } from "@/lib/kaat/templates";
 
 type Body = { user_id: number; session: unknown; lang: string; depth?: "simple" | "detailed"; moment?: string };
 
 export async function POST(req: Request) {
+  if (!sameOrigin(req)) return forbidden();
   const body = (await req.json()) as Body;
   const started = Date.now();
   try {

@@ -12,7 +12,8 @@ import { compileSpecStream, type Spec } from "@json-render/core";
 
 import { enginePost } from "@/lib/engine";
 import { checkGrounding, type Grounding } from "@/lib/kaat/grounding";
-import { allowCall, type CallInfo, chatEnabled, generate, generateObject } from "@/lib/kaat/llm";
+import { admitTurn, clientIp, countCalls, forbidden, sameOrigin } from "@/lib/kaat/guard";
+import { type CallInfo, chatEnabled, generate, generateObject } from "@/lib/kaat/llm";
 import { allowedRefs, refsOf, resolveAndValidate, sanitize, textsOf } from "@/lib/kaat/pipeline";
 import { type Intent, INTENT_SYSTEM, IntentSchema, specSystemPrompt } from "@/lib/kaat/prompt";
 import { buildSpec, type ContextPack } from "@/lib/kaat/templates";
@@ -32,11 +33,12 @@ type OpOut = { result: { diff?: Diff[]; change?: Record<string, unknown>; card?:
 const TURN_BUDGET_MS = 10_000;
 
 export async function POST(req: Request) {
+  if (!sameOrigin(req)) return forbidden();
   const started = Date.now();
   const body = (await req.json()) as Body;
   const message = String(body.message ?? "").trim().slice(0, 1000);
   const depth = body.depth === "detailed" ? "detailed" : "simple";
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(req);
   const llm = chatEnabled() && body.llm !== false;
   const calls: (CallInfo & { step: string })[] = [];
   const trace: Record<string, unknown> = { author: "parser", calls };
@@ -52,8 +54,9 @@ export async function POST(req: Request) {
     let prepared: string[] = parsed.reply.prepared;
     let change: Record<string, unknown> | undefined;
 
-    if (!llm || !allowCall(ip)) {
-      trace.reason = !llm ? "LLM switched off" : "rate limit";
+    const admission = llm ? admitTurn(ip) : ({ ok: false, reason: "LLM switched off" } as const);
+    if (!admission.ok) {
+      trace.reason = admission.reason;
       return Response.json({ text: parsed.reply.reply, prepared, session, state, trace: { ...trace, ms: Date.now() - started } });
     }
 
@@ -157,6 +160,8 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     return Response.json({ error: String(err).slice(0, 300) }, { status: 502 });
+  } finally {
+    countCalls(calls.length); // every Gemini call of this turn counts against the daily ceiling
   }
 }
 

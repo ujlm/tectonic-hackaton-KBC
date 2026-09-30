@@ -672,6 +672,14 @@ class Engine:
                                     i18n.norm(lang))
             except mock.ActionError as e:
                 raise ValidationError(str(e)) from None
+            # One draft per thing: the same draft again is the same card, and a new buffer amount replaces the old draft.
+            for other in s["actions"].values():
+                if other["status"] != "prepared" or (other["service"], other["action"]) != (card["service"], card["action"]):
+                    continue
+                if other["params"] == card["params"]:
+                    return {"card": other, "diff": []}
+                if card["service"] == "buffer":
+                    other["status"] = "cancelled"
             s["seq"] += 1
             s["actions"][card["id"]] = card
             return {"card": card, "diff": []}

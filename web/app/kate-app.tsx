@@ -56,7 +56,8 @@ const T = {
     pictureIntro: "What Kaat thinks about you. Correct anything that's wrong.", whyStage: "Why this stage: ",
     down: "The engine is not reachable. Start it and try again.", loading: "Loading…",
     customers: "Customers", random: "Random", reset: "Reset", simple: "Simple", detailed: "Detailed", pts: "pts",
-    tick: "Mark: people like you", forYou: "For you: {freq}", spec: "Spec",
+    tick: "Mark: people like you", forYou: "For you", likeYou: "people like you: {freq}", spec: "Spec",
+    toConfirm: "To confirm", recent: "Recently done", details: "Details", showTicket: "Show ticket",
     paused: "Okay, I won't bring this up for a while.", adviser: "An adviser will call you back (simulated).",
   },
   nl: {
@@ -72,7 +73,8 @@ const T = {
     pictureIntro: "Wat Kaat over jou denkt. Pas aan wat niet klopt.", whyStage: "Waarom deze fase: ",
     down: "De engine is niet bereikbaar. Start hem en probeer opnieuw.", loading: "Laden…",
     customers: "Klanten", random: "Willekeurig", reset: "Reset", simple: "Eenvoudig", detailed: "Gedetailleerd", pts: "ptn",
-    tick: "Streepje: mensen zoals jij", forYou: "Voor jou: {freq}", spec: "Spec",
+    tick: "Streepje: mensen zoals jij", forYou: "Voor jou", likeYou: "mensen zoals jij: {freq}", spec: "Spec",
+    toConfirm: "Te bevestigen", recent: "Recent afgerond", details: "Details", showTicket: "Toon ticket",
     paused: "Oké, ik kom hier een tijd niet op terug.", adviser: "Een adviseur belt je terug (gesimuleerd).",
   },
   fr: {
@@ -88,7 +90,8 @@ const T = {
     pictureIntro: "Ce que Kaat pense de vous. Corrigez ce qui ne va pas.", whyStage: "Pourquoi cette étape : ",
     down: "Le moteur n'est pas joignable. Démarrez-le et réessayez.", loading: "Chargement…",
     customers: "Clients", random: "Au hasard", reset: "Réinitialiser", simple: "Simple", detailed: "Détaillé", pts: "pts",
-    tick: "Repère : personnes comme vous", forYou: "Pour vous : {freq}", spec: "Spec",
+    tick: "Repère : personnes comme vous", forYou: "Pour vous", likeYou: "personnes comme vous : {freq}", spec: "Spec",
+    toConfirm: "À confirmer", recent: "Récemment effectué", details: "Détails", showTicket: "Voir le billet",
     paused: "D'accord, je n'en reparlerai pas avant un moment.", adviser: "Un conseiller vous rappellera (simulé).",
   },
 } as const;
@@ -146,11 +149,12 @@ function freqParts(p: number): { k: number; n: number } | "all" | "few" {
   return k < 1 ? "few" : { k, n: 100 };
 }
 
-function freq(p: number, lang: Lang): string {
+/** The same frequency as a compact figure for a list: "4 op 10". */
+function freqShort(p: number, lang: Lang): string {
   const f = freqParts(p);
   if (f === "all") return { en: "almost everyone", nl: "bijna iedereen", fr: "presque tout le monde" }[lang];
-  if (f === "few") return { en: "fewer than 1 in 100", nl: "minder dan 1 op de 100", fr: "moins de 1 sur 100" }[lang];
-  return { en: `about ${f.k} in ${f.n}`, nl: `ongeveer ${f.k} op de ${f.n}`, fr: `environ ${f.k} sur ${f.n}` }[lang];
+  if (f === "few") return { en: "fewer than 1 in 100", nl: "minder dan 1 op 100", fr: "moins de 1 sur 100" }[lang];
+  return { en: `${f.k} in ${f.n}`, nl: `${f.k} op ${f.n}`, fr: `${f.k} sur ${f.n}` }[lang];
 }
 
 function peopleLikeYou(p: number, lang: Lang): string {
@@ -424,14 +428,20 @@ export default function KateApp() {
   const renderAction = (a: ActionCard) => (
     <div className="card" key={a.id}>
       <span className="sim">{a.service_name} · {t.simulated}</span>
-      <b>{a.action_name}</b>
-      <p className="sub" style={{ color: "var(--text)" }}>{a.summary}</p>
-      {a.price_text ? <p className="sub">{a.price_text}</p> : null}
-      {a.sends ? <p className="sub">{t.sends}</p> : null}
+      {/* What it is and what it costs are the two facts to scan; the summary is the fine print. */}
+      <div className="act-head">
+        <b>{a.action_name}</b>
+        {a.price_text ? <span className="price">{a.price_text}</span> : null}
+      </div>
+      <p className="sub">{a.summary}</p>
+      {a.sends ? <p className="meta warn">{t.sends}</p> : null}
       {a.status === "prepared" && (
-        <div className="row">
+        <div className="acts">
           <button className="btn" disabled={busy} onClick={() => op("confirm_action", { action_id: a.id })}>{a.button}</button>
-          <button className="btn sec" disabled={busy} onClick={() => op("cancel_action", { action_id: a.id })}>{t.cancel}</button>
+          <button className="btn link" disabled={busy}
+            onClick={async () => { if (await op("cancel_action", { action_id: a.id }) && tab === "home") flash(t.cancelled); }}>
+            {t.cancel}
+          </button>
         </div>
       )}
       {a.status === "done" && (
@@ -448,25 +458,46 @@ export default function KateApp() {
     </div>
   );
 
+  /** A finished action on Home: the outcome in one line, everything else (reference, ticket) folded away. */
+  const renderReceipt = (a: ActionCard) => {
+    const r = a.result;
+    const lines = [r.recommendation, r.what !== r.title ? r.what : null, r.status].filter(Boolean).map(String);
+    return (
+      <details className="card receipt" key={a.id}>
+        <summary>
+          <span className="rc">
+            <span className="done-line">{String(r.title ?? a.action_name)}</span>
+            <span className="meta">{a.service_name} · {t.simulated}</span>
+          </span>
+          <span className="lnk">{r.qr_svg ? t.showTicket : t.details}</span>
+        </summary>
+        {lines.map((l) => <p className="sub" key={l}>{l}</p>)}
+        <p className="sub">{t.reference}: <b>{String(r.reference ?? "")}</b></p>
+        {r.qr_svg ? <div className="qr" dangerouslySetInnerHTML={{ __html: String(r.qr_svg) }} /> : null}
+      </details>
+    );
+  };
+
   const renderHome = () => {
     if (!st) return null;
     const conv = st.kate.passed[0];
     const j = conv ? journeyOf(conv.moment) : undefined;
     const others = conv ? conv.items.slice(1) : [];
-    const recent = st.actions.filter((a) => a.status === "prepared").concat(st.actions.filter((a) => a.status !== "prepared").slice(0, 3));
+    // Newest first from the engine. Cancelled drafts drop off Home (the toast says so); finished ones become receipts.
+    const pending = st.actions.filter((a) => a.status === "prepared");
+    const done = st.actions.filter((a) => a.status === "done").slice(0, 3);
     const staged = st.journeys.filter((x) => x.stage);
     return (
       <>
         {conv ? (
           <section className="hero" aria-label={t.kate}>
+            {/* The orb already says Kaat, and the stage is listed under "Your moments": only the topic stays. */}
             <div className="top">
               <div className="kate-av" aria-hidden="true" />
-              <div>
-                <small>{t.kate} · {j?.label_local} · {j?.stage_label}</small>
-              </div>
+              <small>{j?.label_local}</small>
             </div>
             <p className="big">{conv.lead.say}</p>
-            <div className="row">
+            <div className="acts">
               {conv.lead.action ? (
                 <button className="btn" disabled={busy}
                   onClick={() => op("prepare_action", { service: conv.lead.action!.service, action: conv.lead.action!.action, params: conv.lead.action!.params })}>
@@ -475,7 +506,8 @@ export default function KateApp() {
               ) : (
                 <button className="btn" onClick={() => setShowMore((v) => !v)}>{showMore ? t.hide : t.showMe}</button>
               )}
-              <button className="btn sec" onClick={() => setTab("picture")}>{t.why}</button>
+              <button className="btn link" onClick={() => setTab("picture")}>{t.why}</button>
+              <button className="btn link" disabled={busy} onClick={() => op("ignore", { moment: conv.moment })}>{t.notNow}</button>
             </div>
             {showMore && others.length > 0 && (
               <div className="more">
@@ -493,33 +525,32 @@ export default function KateApp() {
                 ))}
               </div>
             )}
-            <button className="btn link" style={{ color: "#fff", alignSelf: "flex-start" }} disabled={busy}
-              onClick={() => op("ignore", { moment: conv.moment })}>{t.notNow}</button>
           </section>
         ) : (
           <div className="card"><p className="sub">{t.allSet}</p></div>
         )}
 
-        {recent.map(renderAction)}
+        {pending.length > 0 && <div className="sechead">{t.toConfirm}</div>}
+        {pending.map(renderAction)}
 
-        <div className="sechead">{t.moments}</div>
+        <div className="sechead">{t.moments}<span className="col">{t.forYou}</span></div>
         <div className="card">
           {staged.map((jj) => {
             const p = st.predictions.find((x) => x.moment === jj.moment);
             if (!p) return null;
             return (
               <div className="mom" key={jj.moment}>
+                {/* Two columns: the moment and its stage on the left, your chance above that of people like you on the right. */}
                 <div className="t">
                   <span>{p.label_local}</span>
-                  {detail === "detailed" ? <span>{pct(p.probability, lang)}</span> : null}
+                  <span>{detail === "detailed" ? pct(p.probability, lang) : freqShort(p.probability, lang)}</span>
                 </div>
-                <p className="meta">{jj.stage_label}{p.declared_label ? ` · ${p.declared_label}` : ""}</p>
-                {detail === "simple" ? (
-                  <>
-                    <p className="sub">{fill(t.forYou, { freq: freq(p.probability, lang) })}</p>
-                    {p.neighbour_rate !== null ? <p className="sub">{peopleLikeYou(p.neighbour_rate, lang)}</p> : null}
-                  </>
-                ) : (
+                <div className="s">
+                  <p className="meta">{jj.stage_label}{p.declared_label ? ` · ${p.declared_label}` : ""}</p>
+                  {detail === "simple" && p.neighbour_rate !== null
+                    ? <p className="sub">{fill(t.likeYou, { freq: freqShort(p.neighbour_rate, lang) })}</p> : null}
+                </div>
+                {detail === "detailed" && (
                   <>
                     <div className="bar" role="img"
                       aria-label={`${pct(p.probability, lang)}${p.neighbour_rate !== null ? ` · ${peopleLikeYou(p.neighbour_rate, lang)}` : ""}`}>
@@ -534,6 +565,9 @@ export default function KateApp() {
             );
           })}
         </div>
+
+        {done.length > 0 && <div className="sechead">{t.recent}</div>}
+        {done.map(renderReceipt)}
       </>
     );
   };

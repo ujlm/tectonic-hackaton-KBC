@@ -70,6 +70,20 @@ def test_actions_are_prepared_then_only_executed_by_confirm(client, showcase):
     assert done["state"]["forecast"]["buffer"]["monthly"] == card["params"]["amount"]
 
 
+def test_preparing_again_never_piles_up_drafts(client, showcase):
+    uid = showcase["billit_overdue"]
+    prep = lambda sess, service, action, params: post(  # noqa: E731
+        client, "/engine/op", user_id=uid, session=sess, op="prepare_action",
+        args={"service": service, "action": action, "params": params})
+    first = prep(None, "buffer", "start", {"amount": 300})
+    second = prep(first["session"], "buffer", "start", {"amount": 110})
+    same = prep(second["session"], "billit", "send_reminder", {})
+    again = prep(same["session"], "billit", "send_reminder", {})
+    assert again["result"]["card"]["id"] == same["result"]["card"]["id"]
+    pending = [(a["service"], a["params"].get("amount")) for a in again["state"]["actions"] if a["status"] == "prepared"]
+    assert sorted(pending, key=str) == sorted([("buffer", 110), ("billit", None)], key=str)
+
+
 def test_context_pack_has_ids_and_allowed_lists(client, showcase):
     uid = showcase["billit_overdue"]
     ctx = post(client, "/engine/context", user_id=uid, lang="en")["context"]

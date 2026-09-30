@@ -3,7 +3,7 @@ import re
 
 from app import i18n
 from app.assumptions import CATALOGUE
-from app.i18n.services import ACTIONS, RESULTS
+from app.i18n.services import ACTIONS, NAMES, RESULTS
 from app.journeys import HELP_ITEMS
 from app.services.registry import SERVICES
 
@@ -50,3 +50,4 @@ def test_every_customer_text_is_translated_with_the_same_placeholders():
             for a in svc.actions:
                 assert f"{sid}.{a.id}" in ACTIONS[lang], (lang, sid, a.id)
         assert set(RESULTS[lang]) == set(RESULTS["en"]), lang
+        assert set(NAMES[lang]) == set(NAMES["nl"]) and set(NAMES[lang]) <= set(SERVICES), lang

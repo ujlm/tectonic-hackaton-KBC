@@ -84,13 +84,14 @@ button { cursor: pointer; }
 .tab.on { color: var(--blue-strong); font-weight: 800; }
 .tab svg { width: 1.375rem; height: 1.375rem; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .toast { position: absolute; left: 1rem; right: 1rem; bottom: 5rem; background: var(--navy); color: #fff; border-radius: 0.625rem; padding: 0.75rem 1rem; font-weight: 700; box-shadow: 0 10px 30px -10px rgba(0,0,0,.4); z-index: 5; }
-.sim { font-size: 0.6875rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.sim { font-size: 0.75rem; color: var(--muted); }
 .jos { border-left: 4px solid var(--warn-text); }
 .list { margin: 0; padding-left: 1.125rem; color: var(--muted); font-size: 0.8125rem; }
 
 /* Simple: bigger text and 56px+ tap targets. Detailed: normal size. */
 .simple { --tap: 3.5rem; }
 .hero .btn.link { background: none; color: #fff; border: 0; text-decoration: underline; }
+.hero .top small { font-weight: 700; }
 
 /* Information is plain text, never a pill: only things you can tap look tappable. */
 .meta { margin: 0; font-size: 0.78rem; font-weight: 700; color: var(--muted); }
@@ -142,3 +143,22 @@ button { cursor: pointer; }
 .tab.center { position: relative; }
 .tab-orb { width: 2.5rem; height: 2.5rem; margin-top: -1.125rem; box-shadow: 0 0 0 4px #fff, 0 6px 14px -6px rgba(0,60,120,.6); }
 .tab.center.on { color: var(--navy); }
+
+/* --- Home hierarchy: one filled button per card, other choices are text links beside it --- */
+.acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; }
+.acts .btn { width: auto; flex: 1 1 auto; padding-left: 1rem; padding-right: 1rem; }
+/* The negative margin keeps a wrapped link's text in line with the button edge while its tap area stays wide. */
+.acts .btn.link { flex: none; padding-left: 0.5rem; padding-right: 0.5rem; margin: 0 -0.5rem; }
+.act-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.act-head b { color: var(--navy); }
+.price { max-width: 45%; text-align: right; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; }
+.sechead .col { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+.mom .s { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.mom .s .sub { text-align: right; }
+.receipt { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.receipt:not([open]) { gap: 0; }
+.receipt summary { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; min-height: var(--tap); cursor: pointer; list-style: none; }
+.receipt summary::-webkit-details-marker { display: none; }
+.receipt summary .rc { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
+.receipt summary .lnk { color: var(--blue-strong); font-weight: 700; font-size: 0.84375rem; white-space: nowrap; }
+.receipt[open] summary { margin-bottom: 0.25rem; }
